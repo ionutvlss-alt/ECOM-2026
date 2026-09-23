@@ -1,10 +1,10 @@
 import React from 'react';
-import { FilterOptions, ProductCategory, ProductStatus, SponsorshipType } from '../types/product';
-import { CATEGORIES_LIST } from '../data/initialProducts';
-import { Search, LayoutGrid, List, ArrowUpDown, X } from 'lucide-react';
+import { FilterOptions, CampaignStatus } from '../types/product';
+import { Search, LayoutGrid, List, X, Filter } from 'lucide-react';
 
 interface FilterBarProps {
   filterOptions: FilterOptions;
+  categories: string[];
   onFilterChange: (newOptions: Partial<FilterOptions>) => void;
   viewMode: 'grid' | 'table';
   onViewModeChange: (mode: 'grid' | 'table') => void;
@@ -13,17 +13,18 @@ interface FilterBarProps {
 
 export const FilterBar: React.FC<FilterBarProps> = ({
   filterOptions,
+  categories,
   onFilterChange,
   viewMode,
   onViewModeChange,
   totalFilteredCount,
 }) => {
-  const statusChips: { id: ProductStatus | 'all'; label: string }[] = [
+  const statusChips: { id: CampaignStatus | 'all'; label: string }[] = [
     { id: 'all', label: 'Toate' },
-    { id: 'to_test', label: 'De testat' },
+    { id: 'winner', label: 'Winner (Scalat)' },
     { id: 'testing', label: 'În testare' },
-    { id: 'tested', label: 'Testate' },
-    { id: 'rejected', label: 'Respinse' },
+    { id: 'promising', label: 'Promițător' },
+    { id: 'stopped', label: 'Oprit' },
   ];
 
   return (
@@ -37,13 +38,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             type="text"
             value={filterOptions.search}
             onChange={(e) => onFilterChange({ search: e.target.value })}
-            placeholder="Caută după nume, brand, notițe..."
+            placeholder="Caută după produs, brand, categorie, platformă sau note..."
             className="w-full bg-neutral-50 border border-neutral-200 rounded-xl pl-9 pr-8 py-2 text-xs text-neutral-900 placeholder-neutral-400 focus:outline-none focus:border-[#0f4a3c] focus:bg-white transition-all"
           />
           {filterOptions.search && (
             <button
               onClick={() => onFilterChange({ search: '' })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -60,24 +61,24 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <button
               type="button"
               onClick={() => onViewModeChange('grid')}
-              className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`p-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === 'grid'
                   ? 'bg-white text-neutral-900 shadow-2xs'
                   : 'text-neutral-500 hover:text-neutral-900'
               }`}
-              title="Vizualizare Carduri (Grid)"
+              title="Vizualizare Carduri"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => onViewModeChange('table')}
-              className={`p-1.5 rounded-lg text-xs font-medium transition-colors ${
+              className={`p-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 viewMode === 'table'
                   ? 'bg-white text-neutral-900 shadow-2xs'
                   : 'text-neutral-500 hover:text-neutral-900'
               }`}
-              title="Vizualizare Tabel (SaaS Table)"
+              title="Vizualizare Tabel"
             >
               <List className="w-4 h-4" />
             </button>
@@ -85,17 +86,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
       </div>
 
-      {/* Bottom row: Status Filter Chips & Category Select */}
+      {/* Bottom row: Campaign Status Filter Chips & Category/Platform Dropdowns */}
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-100">
         {/* Status Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {statusChips.map((chip) => {
-            const isActive = filterOptions.status === chip.id;
+            const isActive = filterOptions.campaignStatus === chip.id;
             return (
               <button
                 key={chip.id}
-                onClick={() => onFilterChange({ status: chip.id })}
-                className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors shrink-0 ${
+                onClick={() => onFilterChange({ campaignStatus: chip.id })}
+                className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors shrink-0 cursor-pointer ${
                   isActive
                     ? 'bg-[#0f4a3c] text-white shadow-2xs'
                     : 'bg-neutral-100 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-200/70'
@@ -107,35 +108,47 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           })}
         </div>
 
-        {/* Dropdowns: Category, Sponsorship, Sort */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        {/* Dropdowns: Category, Platform, Sort */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Category Dropdown */}
           <select
             value={filterOptions.category}
-            onChange={(e) => onFilterChange({ category: e.target.value as any })}
-            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-700 focus:outline-none focus:border-[#0f4a3c]"
+            onChange={(e) => onFilterChange({ category: e.target.value })}
+            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-700 focus:outline-none focus:border-[#0f4a3c] cursor-pointer"
           >
             <option value="all">Toate categoriile</option>
-            {CATEGORIES_LIST.map((c) => (
+            {categories.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
           </select>
 
-          {/* Sort Dropdown */}
+          {/* Platform Dropdown */}
+          <select
+            value={filterOptions.platform}
+            onChange={(e) => onFilterChange({ platform: e.target.value })}
+            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-700 focus:outline-none focus:border-[#0f4a3c] cursor-pointer"
+          >
+            <option value="all">Toate platformele</option>
+            <option value="TikTok Ads">TikTok Ads</option>
+            <option value="Facebook Ads">Facebook Ads</option>
+            <option value="Google Ads">Google Ads</option>
+            <option value="Altele">Altele</option>
+          </select>
+
+          {/* Sort By Dropdown */}
           <select
             value={filterOptions.sortBy}
             onChange={(e) => onFilterChange({ sortBy: e.target.value as any })}
-            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-700 focus:outline-none focus:border-[#0f4a3c]"
+            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs text-neutral-700 focus:outline-none focus:border-[#0f4a3c] cursor-pointer"
           >
-            <option value="date_desc">Cele mai noi</option>
-            <option value="date_asc">Cele mai vechi</option>
-            <option value="rating_desc">Scor descrescător</option>
-            <option value="rating_asc">Scor crescător</option>
-            <option value="price_desc">Preț descrescător</option>
-            <option value="price_asc">Preț crescător</option>
-            <option value="name_asc">Alfabetic (A-Z)</option>
+            <option value="date_desc">Cele mai recente</option>
+            <option value="roas_desc">ROAS (cel mai mare)</option>
+            <option value="revenue_desc">Venit (descrescător)</option>
+            <option value="spend_desc">Buget cheltuit</option>
+            <option value="price_desc">Preț produs (mare la mic)</option>
+            <option value="name_asc">Nume (A - Z)</option>
           </select>
         </div>
       </div>

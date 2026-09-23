@@ -1,56 +1,52 @@
-import { Product } from '../types/product';
+import { Product, AdPlatform, CampaignStatus } from '../types/product';
 
 export const INITIAL_PRODUCTS: Product[] = [];
 
-export const CATEGORIES_LIST = [
-  'Tech & Gadgets',
-  'Audio & Video',
-  'Smart Home & Electro',
+export const DEFAULT_CATEGORIES: string[] = [
+  'Gadgets & Tech',
   'Cosmetice & Beauty',
-  'Bucătărie & Cafea',
+  'Casă & Curățenie',
+  'Bucătărie & Electro',
   'Fitness & Sport',
   'Auto & Accesorii',
+  'Îmbrăcăminte & Modă',
+  'Jucării & Copii',
+  'Animale de companie',
   'Altele'
-] as const;
+];
 
-export const STATUS_LABELS: Record<string, { label: string; desc: string }> = {
-  to_test: { label: 'De testat', desc: 'În lista de dorințe / În așteptare' },
-  testing: { label: 'În testare', desc: 'Test activ în desfășurare' },
-  tested: { label: 'Testat & Evaluat', desc: 'Recenzie finalizată' },
-  rejected: { label: 'Respins / Renunțat', desc: 'Testare oprită sau produs returnat' },
-};
+export const AD_PLATFORMS: { id: string; label: string; badgeClass: string; borderClass: string }[] = [
+  { id: 'Facebook Ads', label: 'Facebook Ads (Meta)', badgeClass: 'bg-blue-50 text-blue-700', borderClass: 'border-blue-200' },
+  { id: 'TikTok Ads', label: 'TikTok Ads', badgeClass: 'bg-neutral-900 text-white', borderClass: 'border-neutral-800' },
+  { id: 'Instagram Ads', label: 'Instagram Ads', badgeClass: 'bg-pink-50 text-pink-700', borderClass: 'border-pink-200' },
+  { id: 'Google Ads', label: 'Google Ads', badgeClass: 'bg-red-50 text-red-700', borderClass: 'border-red-200' },
+  { id: 'Pinterest Ads', label: 'Pinterest Ads', badgeClass: 'bg-rose-50 text-rose-700', borderClass: 'border-rose-200' },
+  { id: 'Altele', label: 'Altă platformă', badgeClass: 'bg-purple-50 text-purple-700', borderClass: 'border-purple-200' },
+];
 
-export const SPONSORSHIP_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  personal: { label: 'Achiziție personală', color: 'text-neutral-600', bg: 'bg-neutral-100 border-neutral-200' },
-  sponsored: { label: 'Parteneriat plătit (Reclamă)', color: 'text-amber-800', bg: 'bg-amber-50 border-amber-200' },
-  pr_gift: { label: 'PR Sample / Primit în teste', color: 'text-teal-800', bg: 'bg-teal-50 border-teal-200' },
-  affiliate: { label: 'Campanie afiliată', color: 'text-emerald-800', bg: 'bg-emerald-50 border-emerald-200' },
-};
-
-export const VERDICT_LABELS: Record<string, { label: string; color: string; border: string }> = {
-  highly_recommended: {
-    label: 'Recomand cu căldură',
+export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, { label: string; color: string; bg: string; border: string }> = {
+  winner: {
+    label: 'Winner (Scalat)',
     color: 'text-emerald-700',
-    border: 'border-emerald-200 bg-emerald-50'
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
   },
-  recommended: {
-    label: 'Recomandat',
-    color: 'text-teal-700',
-    border: 'border-teal-200 bg-teal-50'
-  },
-  wait_for_sale: {
-    label: 'Merită doar la reducere',
+  testing: {
+    label: 'În testare',
     color: 'text-amber-700',
-    border: 'border-amber-200 bg-amber-50'
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
   },
-  neutral: {
-    label: 'Neutru / Cu rezerve',
-    color: 'text-neutral-700',
-    border: 'border-neutral-200 bg-neutral-50'
+  promising: {
+    label: 'Promițător (Break-even)',
+    color: 'text-blue-700',
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
   },
-  not_recommended: {
-    label: 'Nu recomand',
+  stopped: {
+    label: 'Oprit (Necâștigător)',
     color: 'text-rose-700',
-    border: 'border-rose-200 bg-rose-50'
-  }
+    bg: 'bg-rose-50',
+    border: 'border-rose-200',
+  },
 };

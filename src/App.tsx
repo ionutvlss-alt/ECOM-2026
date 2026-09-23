@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, ProductStatus, FilterOptions, TestLogEntry } from './types/product';
+import { Product, FilterOptions, CampaignStatus } from './types/product';
 import { storageService } from './services/storageService';
 import { Sidebar } from './components/Sidebar';
 import { HeaderBar } from './components/HeaderBar';
@@ -14,26 +14,27 @@ import { ProductCard } from './components/ProductCard';
 import { TableView } from './components/TableView';
 import { KanbanView } from './components/KanbanView';
 import { CampaignsView } from './components/CampaignsView';
+import { CategoriesView } from './components/CategoriesView';
 import { GalleryView } from './components/GalleryView';
 import { ReportsView } from './components/ReportsView';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
 import { ExportImportModal } from './components/ExportImportModal';
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus, Package, AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>(() => storageService.getProducts());
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'gallery' | 'reports'>('dashboard');
+  const [categories, setCategories] = useState<string[]>(() => storageService.getCategories());
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports'>('dashboard');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   // Filter state
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     search: '',
-    status: 'all',
+    campaignStatus: 'all',
+    platform: 'all',
     category: 'all',
-    sponsorship: 'all',
-    minRating: 0,
     sortBy: 'date_desc',
   });
 
@@ -43,13 +44,13 @@ export default function App() {
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [isExportImportOpen, setIsExportImportOpen] = useState(false);
 
-  // Sync to storage on products change
+  // Sync products to storage
   const updateProducts = (newProducts: Product[]) => {
     setProducts(newProducts);
     storageService.saveProducts(newProducts);
   };
 
-  // Keep selectedProduct in sync if it is updated
+  // Keep selectedProduct in sync
   useEffect(() => {
     if (selectedProduct) {
       const updated = products.find((p) => p.id === selectedProduct.id);
@@ -59,8 +60,24 @@ export default function App() {
     }
   }, [products]);
 
+  // Categorie handlers
+  const handleAddCategory = (categoryName: string) => {
+    const updated = storageService.addCategory(categoryName);
+    setCategories(updated);
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    const updated = storageService.deleteCategory(categoryName);
+    setCategories(updated);
+  };
+
   // Handle Save (Create or Edit)
-  const handleSaveProduct = (product: Product) => {
+  const handleSaveProduct = (product: Product, newCategoryCreated?: string) => {
+    if (newCategoryCreated) {
+      const updatedCats = storageService.addCategory(newCategoryCreated);
+      setCategories(updatedCats);
+    }
+
     const existingIndex = products.findIndex((p) => p.id === product.id);
     let updated: Product[];
 
@@ -92,40 +109,16 @@ export default function App() {
     }
   };
 
-  // Handle Status Update
-  const handleUpdateStatus = (productId: string, newStatus: ProductStatus) => {
+  // Handle Campaign Status Update
+  const handleUpdateCampaignStatus = (productId: string, newStatus: CampaignStatus) => {
     const updated = products.map((p) => {
       if (p.id === productId) {
         return {
           ...p,
-          status: newStatus,
-          startedTestingAt:
-            newStatus === 'testing' && !p.startedTestingAt
-              ? new Date().toISOString().slice(0, 10)
-              : p.startedTestingAt,
-          completedTestingAt:
-            newStatus === 'tested' && !p.completedTestingAt
-              ? new Date().toISOString().slice(0, 10)
-              : p.completedTestingAt,
-        };
-      }
-      return p;
-    });
-
-    updateProducts(updated);
-  };
-
-  // Handle Add Log Entry
-  const handleAddLog = (productId: string, logData: Omit<TestLogEntry, 'id'>) => {
-    const updated = products.map((p) => {
-      if (p.id === productId) {
-        const newLog: TestLogEntry = {
-          ...logData,
-          id: `log-${Date.now()}`,
-        };
-        return {
-          ...p,
-          logs: [...(p.logs || []), newLog],
+          campaign: {
+            ...p.campaign,
+            status: newStatus,
+          },
         };
       }
       return p;
@@ -153,30 +146,34 @@ export default function App() {
         // Search
         if (filterOptions.search) {
           const q = filterOptions.search.toLowerCase();
-          const matchTitle = p.title.toLowerCase().includes(q);
-          const matchBrand = p.brand.toLowerCase().includes(q);
+          const matchTitle = (p.title || '').toLowerCase().includes(q);
+          const matchBrand = (p.brand || '').toLowerCase().includes(q);
           const matchStore = (p.storeName || '').toLowerCase().includes(q);
-          const matchNotes = (p.detailedNotes || '').toLowerCase().includes(q);
-          const matchSummary = (p.reviewSummary || '').toLowerCase().includes(q);
-          const matchCategory = p.category.toLowerCase().includes(q);
-          if (!matchTitle && !matchBrand && !matchStore && !matchNotes && !matchSummary && !matchCategory) {
+          const matchCategory = (p.category || '').toLowerCase().includes(q);
+          const matchPlatform = (p.campaign?.platform || '').toLowerCase().includes(q);
+          const matchNotes = (p.campaign?.notes || '').toLowerCase().includes(q) || (p.detailedNotes || '').toLowerCase().includes(q);
+          if (!matchTitle && !matchBrand && !matchStore && !matchCategory && !matchPlatform && !matchNotes) {
             return false;
           }
         }
 
-        // Status
-        if (filterOptions.status !== 'all' && p.status !== filterOptions.status) {
+        // Campaign Status
+        if (filterOptions.campaignStatus !== 'all' && (p.campaign?.status || 'testing') !== filterOptions.campaignStatus) {
           return false;
         }
 
         // Category
-        if (filterOptions.category !== 'all' && p.category !== filterOptions.category) {
+        if (filterOptions.category !== 'all' && (p.category || '').toLowerCase() !== filterOptions.category.toLowerCase()) {
           return false;
         }
 
-        // Sponsorship
-        if (filterOptions.sponsorship !== 'all' && p.sponsorship !== filterOptions.sponsorship) {
-          return false;
+        // Platform
+        if (filterOptions.platform !== 'all') {
+          const platStr = (p.campaign?.platform || '').toLowerCase();
+          const target = filterOptions.platform.toLowerCase();
+          if (!platStr.includes(target) && !target.includes(platStr)) {
+            return false;
+          }
         }
 
         return true;
@@ -184,46 +181,46 @@ export default function App() {
       .sort((a, b) => {
         switch (filterOptions.sortBy) {
           case 'date_desc':
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
           case 'date_asc':
-            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          case 'rating_desc':
-            return (b.overallRating || 0) - (a.overallRating || 0);
-          case 'rating_asc':
-            return (a.overallRating || 0) - (b.overallRating || 0);
+            return new Date(a.createdAt || '').getTime() - new Date(b.createdAt || '').getTime();
+          case 'roas_desc':
+            return (b.campaign?.roas || 0) - (a.campaign?.roas || 0);
+          case 'revenue_desc':
+            return (b.campaign?.revenue || 0) - (a.campaign?.revenue || 0);
+          case 'spend_desc':
+            return (b.campaign?.adSpend || 0) - (a.campaign?.adSpend || 0);
           case 'price_desc':
-            return b.price - a.price;
-          case 'price_asc':
-            return a.price - b.price;
+            return (b.price || 0) - (a.price || 0);
           case 'name_asc':
-            return a.title.localeCompare(b.title, 'ro');
+            return (a.title || '').localeCompare(b.title || '', 'ro');
           default:
             return 0;
         }
       });
   }, [products, filterOptions]);
 
-  const testingCount = products.filter((p) => p.status === 'testing').length;
-  const testedCount = products.filter((p) => p.status === 'tested').length;
+  const testingCount = products.filter((p) => (p.campaign?.status || 'testing') === 'testing').length;
+  const winnersCount = products.filter((p) => p.campaign?.status === 'winner').length;
 
   return (
     <div className="min-h-screen bg-[#f8faf9] text-neutral-900 flex antialiased selection:bg-emerald-100 selection:text-emerald-900 font-sans">
-      {/* Left Sidebar adhering to Collective Product Journal layout */}
+      {/* Sidebar */}
       <Sidebar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         productsCount={products.length}
-        testedCount={testedCount}
+        winnersCount={winnersCount}
         testingCount={testingCount}
         userName="ionutvlss"
-        userEmail="ionutvlss • Personal workspace"
+        userEmail="ionutvlss • E-commerce Workspace"
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
-      {/* Main Content wrapper pushed by fixed sidebar on md+ */}
+      {/* Main Content wrapper */}
       <div className="flex-1 flex flex-col md:pl-64 min-w-0">
-        {/* Sticky Header with breadcrumbs and actions */}
+        {/* Header Bar */}
         <HeaderBar
           currentTab={currentTab}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
@@ -233,19 +230,12 @@ export default function App() {
 
         {/* Workspace Body */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-6 sm:py-8">
-          {/* Tab 1: Dashboard Overview (matching screenshot) */}
+          {/* Tab 1: Dashboard Overview */}
           {currentTab === 'dashboard' && (
             <DashboardOverview
               products={products}
               onSelectProduct={setSelectedProduct}
-              onNavigateToCatalog={(statusFilter) => {
-                if (statusFilter) {
-                  setFilterOptions((prev) => ({ ...prev, status: statusFilter as any }));
-                }
-                setCurrentTab('catalog');
-              }}
-              onNavigateToCampaigns={() => setCurrentTab('campaigns')}
-              onOpenNewProduct={() => {
+              onOpenAddModal={() => {
                 setEditingProduct(null);
                 setIsNewProductOpen(true);
               }}
@@ -262,7 +252,7 @@ export default function App() {
                     Produsele mele
                   </h1>
                   <p className="mt-1 text-xs sm:text-sm text-neutral-500">
-                    Explorează, filtrează și gestionează toate produsele din colecția ta.
+                    Explorează produsele, platformele testate (Facebook / TikTok) și metricile campaniilor.
                   </p>
                 </div>
 
@@ -271,16 +261,17 @@ export default function App() {
                     setEditingProduct(null);
                     setIsNewProductOpen(true);
                   }}
-                  className="px-4 py-2.5 text-xs font-semibold text-white bg-[#0f4a3c] hover:bg-[#0c3c31] rounded-xl transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
+                  className="px-4 py-2.5 text-xs font-semibold text-white bg-[#0f4a3c] hover:bg-[#0c3c31] rounded-xl transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Adaugă produs</span>
+                  <span>Adaugă produs & campanie</span>
                 </button>
               </div>
 
               {/* Filter Bar */}
               <FilterBar
                 filterOptions={filterOptions}
+                categories={categories}
                 onFilterChange={(newOpts) => setFilterOptions((prev) => ({ ...prev, ...newOpts }))}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
@@ -293,9 +284,9 @@ export default function App() {
                   <div className="w-12 h-12 rounded-2xl bg-[#eaf3ee] flex items-center justify-center text-[#0f4a3c] mx-auto mb-3">
                     <Package className="w-6 h-6" />
                   </div>
-                  <h3 className="text-base font-bold text-neutral-900">Jurnalul tău de produse este gol</h3>
+                  <h3 className="text-base font-bold text-neutral-900">Nu ai adăugat încă niciun produs</h3>
                   <p className="text-xs text-neutral-500 max-w-sm mx-auto mt-1">
-                    Începe evidența apăsând pe butonul de mai jos pentru a adăuga primul dispozitiv sau articol pe care dorești să-l testezi.
+                    Apasă pe butonul de mai jos pentru a înregistra primul produs testat pe Facebook Ads sau TikTok Ads.
                   </p>
                   <button
                     onClick={() => {
@@ -313,20 +304,19 @@ export default function App() {
                   <AlertCircle className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
                   <h3 className="text-base font-semibold text-neutral-900">Niciun produs găsit</h3>
                   <p className="text-xs text-neutral-500 max-w-sm mx-auto mt-1">
-                    Nu am găsit produse care să corespundă filtrelor tale. Încearcă să resetezi termenii de căutare.
+                    Nu am găsit produse care să corespundă filtrelor selectate.
                   </p>
                   <button
                     onClick={() =>
                       setFilterOptions({
                         search: '',
-                        status: 'all',
+                        campaignStatus: 'all',
+                        platform: 'all',
                         category: 'all',
-                        sponsorship: 'all',
-                        minRating: 0,
                         sortBy: 'date_desc',
                       })
                     }
-                    className="mt-4 px-3.5 py-1.5 bg-[#eaf3ee] hover:bg-[#d8ece1] text-[#0f4a3c] text-xs font-semibold rounded-xl transition-colors"
+                    className="mt-4 px-3.5 py-1.5 bg-[#eaf3ee] hover:bg-[#d8ece1] text-[#0f4a3c] text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                   >
                     Resetează filtrele
                   </button>
@@ -358,22 +348,48 @@ export default function App() {
                     setIsNewProductOpen(true);
                   }}
                   onDeleteProduct={handleDeleteProduct}
-                  onUpdateStatus={handleUpdateStatus}
+                  onUpdateCampaignStatus={handleUpdateCampaignStatus}
                 />
               )}
             </div>
           )}
 
-          {/* Tab 3: Tablou Kanban Workflow */}
+          {/* Tab 3: Campanii Ads & Rezultate (Facebook & TikTok) */}
+          {currentTab === 'campaigns' && (
+            <CampaignsView
+              products={products}
+              onSelectProduct={setSelectedProduct}
+              onOpenAddModal={() => {
+                setEditingProduct(null);
+                setIsNewProductOpen(true);
+              }}
+            />
+          )}
+
+          {/* Tab 4: Gestionare Categorii (Pagina specială cerută de utilizator!) */}
+          {currentTab === 'categories' && (
+            <CategoriesView
+              categories={categories}
+              products={products}
+              onAddCategory={handleAddCategory}
+              onDeleteCategory={handleDeleteCategory}
+              onSelectCategoryFilter={(categoryName) => {
+                setFilterOptions((prev) => ({ ...prev, category: categoryName }));
+                setCurrentTab('catalog');
+              }}
+            />
+          )}
+
+          {/* Tab 5: Workflow Campanii (Kanban) */}
           {currentTab === 'kanban' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
-                    Colecții & Flux de Testare (Kanban)
+                    Workflow & Etape Campanii Ads
                   </h1>
                   <p className="mt-1 text-xs sm:text-sm text-neutral-500">
-                    Urmărește și avansează fiecare produs prin etape: De testat → În testare → Evaluat.
+                    Avansează produsele prin etapele de testare: În testare → Winner (Scalat) → Promițător → Oprit.
                   </p>
                 </div>
 
@@ -382,30 +398,22 @@ export default function App() {
                     setEditingProduct(null);
                     setIsNewProductOpen(true);
                   }}
-                  className="px-4 py-2.5 text-xs font-semibold text-white bg-[#0f4a3c] hover:bg-[#0c3c31] rounded-xl transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
+                  className="px-4 py-2.5 text-xs font-semibold text-white bg-[#0f4a3c] hover:bg-[#0c3c31] rounded-xl transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-xs cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Adaugă produs</span>
+                  <span>Adaugă test nou</span>
                 </button>
               </div>
 
               <KanbanView
                 products={products}
                 onSelectProduct={setSelectedProduct}
-                onUpdateStatus={handleUpdateStatus}
+                onUpdateCampaignStatus={handleUpdateCampaignStatus}
               />
             </div>
           )}
 
-          {/* Tab 4: Reclame & Campanii Sponsorizate */}
-          {currentTab === 'campaigns' && (
-            <CampaignsView
-              products={products}
-              onSelectProduct={setSelectedProduct}
-            />
-          )}
-
-          {/* Tab 5: Galerie Foto */}
+          {/* Tab 6: Galerie Foto */}
           {currentTab === 'gallery' && (
             <GalleryView
               products={products}
@@ -413,10 +421,11 @@ export default function App() {
             />
           )}
 
-          {/* Tab 6: Rapoarte Detaliate */}
+          {/* Tab 7: Rapoarte Detaliate & ROAS */}
           {currentTab === 'reports' && (
             <ReportsView
               products={products}
+              categories={categories}
               onSelectProduct={setSelectedProduct}
             />
           )}
@@ -436,8 +445,7 @@ export default function App() {
           onDelete={(productId) => {
             handleDeleteProduct(productId);
           }}
-          onUpdateStatus={handleUpdateStatus}
-          onAddLog={handleAddLog}
+          onUpdateStatus={handleUpdateCampaignStatus}
           onToggleFavorite={handleToggleFavorite}
         />
       )}
@@ -445,6 +453,7 @@ export default function App() {
       {isNewProductOpen && (
         <ProductFormModal
           initialProduct={editingProduct}
+          categories={categories}
           onSave={handleSaveProduct}
           onClose={() => {
             setIsNewProductOpen(false);
