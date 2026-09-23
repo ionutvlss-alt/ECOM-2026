@@ -1,13 +1,26 @@
 import React, { useRef, useState } from 'react';
 import { Product } from '../types/product';
 import { storageService } from '../services/storageService';
-import { X, Download, Upload, RefreshCw, CheckCircle2, AlertTriangle, FileText, Search, Database } from 'lucide-react';
+import {
+  X,
+  Download,
+  Upload,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  FileText,
+  Search,
+  Database,
+  Smartphone,
+  ArrowRight
+} from 'lucide-react';
 
 interface ExportImportModalProps {
   products: Product[];
   onImportSuccess: (products: Product[]) => void;
   onResetSuccess: (products: Product[]) => void;
   onClose: () => void;
+  onOpenDeviceSync?: () => void;
 }
 
 export const ExportImportModal: React.FC<ExportImportModalProps> = ({
@@ -15,6 +28,7 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
   onImportSuccess,
   onResetSuccess,
   onClose,
+  onOpenDeviceSync,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -134,6 +148,36 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
             <span>{isScanning ? 'Scanare...' : 'Verifică / Restaurează'}</span>
           </button>
         </div>
+
+        {/* Transfer pe telefon / Alte dispozitive */}
+        {onOpenDeviceSync && (
+          <div className="p-3.5 bg-[#f5f9f6] border border-[#cfe5d9] rounded-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#0f4a3c] text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Smartphone className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-neutral-900 block">
+                  Vrei produsele pe telefon?
+                </span>
+                <span className="text-[11px] text-neutral-500 block">
+                  Scanează codul QR cu camera telefonului pentru transfer instant.
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenDeviceSync();
+              }}
+              className="px-3 py-1.5 bg-[#0f4a3c] hover:bg-[#0c3b30] text-white rounded-lg text-xs font-semibold transition-colors shrink-0 flex items-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span>Transferă QR</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
+        )}
 
         {/* Export Options */}
         <div className="space-y-3">

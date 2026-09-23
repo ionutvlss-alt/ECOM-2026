@@ -8,7 +8,8 @@ import {
   FolderTree,
   Image as ImageIcon,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Smartphone
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -21,6 +22,7 @@ interface SidebarProps {
   userEmail?: string;
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  onOpenDeviceSync?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   userEmail = 'ionutvlss • E-commerce Workspace',
   isOpenMobile,
   onCloseMobile,
+  onOpenDeviceSync,
 }) => {
   const handleNav = (tab: typeof currentTab) => {
     onTabChange(tab);
@@ -197,6 +200,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {testingCount} campanii active în testare
             </span>
           </div>
+
+          {onOpenDeviceSync && (
+            <button
+              onClick={() => {
+                onOpenDeviceSync();
+                onCloseMobile();
+              }}
+              className="w-full p-2.5 bg-[#eaf3ee] hover:bg-[#d8ece1] border border-[#cfe5d9] rounded-xl text-xs font-semibold text-[#0f4a3c] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <Smartphone className="w-4 h-4 text-[#0f4a3c]" />
+              <span>Sincronizare Telefon (QR)</span>
+            </button>
+          )}
         </div>
 
         {/* User Profile Card */}

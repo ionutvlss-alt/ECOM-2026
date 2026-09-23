@@ -1,10 +1,11 @@
 import React from 'react';
-import { Bell, Menu, Database } from 'lucide-react';
+import { Menu, Database, Smartphone } from 'lucide-react';
 
 interface HeaderBarProps {
   currentTab: string;
   onOpenMobileSidebar: () => void;
   onOpenExportImport: () => void;
+  onOpenDeviceSync: () => void;
   userName?: string;
 }
 
@@ -22,6 +23,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   currentTab,
   onOpenMobileSidebar,
   onOpenExportImport,
+  onOpenDeviceSync,
   userName = 'ionutvlss',
 }) => {
   return (
@@ -46,17 +48,27 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       </div>
 
       {/* Right: Actions & Profile */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          onClick={onOpenDeviceSync}
+          className="px-2.5 py-1.5 text-xs font-semibold text-[#0f4a3c] bg-[#eaf3ee] hover:bg-[#d9ece1] rounded-lg flex items-center gap-1.5 border border-[#cfe5d9] transition-colors cursor-pointer shadow-2xs"
+          title="Sincronizare între telefon și calculator"
+        >
+          <Smartphone className="w-3.5 h-3.5 text-[#0f4a3c]" />
+          <span className="hidden sm:inline">Sincronizare Telefon (QR)</span>
+          <span className="sm:hidden font-bold">Sincronizează</span>
+        </button>
+
         <button
           onClick={onOpenExportImport}
-          className="px-2.5 py-1 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg flex items-center gap-1.5 border border-neutral-200 transition-colors cursor-pointer"
+          className="px-2.5 py-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg flex items-center gap-1.5 border border-neutral-200 transition-colors cursor-pointer"
           title="Backup & Export date"
         >
           <Database className="w-3.5 h-3.5 text-neutral-500" />
           <span className="hidden sm:inline">Backup / Export</span>
         </button>
 
-        <div className="w-px h-4 bg-neutral-200 mx-1" />
+        <div className="w-px h-4 bg-neutral-200 mx-0.5 sm:mx-1" />
 
         <div className="flex items-center gap-2 p-1 rounded-lg">
           <div className="w-7 h-7 rounded-full bg-[#0f4a3c] text-white font-bold text-xs flex items-center justify-center shadow-xs">

@@ -20,6 +20,7 @@ import { ReportsView } from './components/ReportsView';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
 import { ExportImportModal } from './components/ExportImportModal';
+import { DeviceSyncModal } from './components/DeviceSyncModal';
 import { Plus, Package, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -43,6 +44,23 @@ export default function App() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [isExportImportOpen, setIsExportImportOpen] = useState(false);
+  const [isDeviceSyncOpen, setIsDeviceSyncOpen] = useState(false);
+  const [urlSyncRoomCode, setUrlSyncRoomCode] = useState<string | null>(null);
+
+  // Detect URL parameter ?sync_room=XYZ on phone or secondary device
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('sync_room') || params.get('sync_code');
+      if (room) {
+        setUrlSyncRoomCode(room);
+        setIsDeviceSyncOpen(true);
+        // Clean URL without reloading
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch {}
+  }, []);
 
   // Sync products to storage
   const updateProducts = (newProducts: Product[]) => {
@@ -230,6 +248,10 @@ export default function App() {
         userEmail="ionutvlss • E-commerce Workspace"
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        onOpenDeviceSync={() => {
+          setUrlSyncRoomCode(null);
+          setIsDeviceSyncOpen(true);
+        }}
       />
 
       {/* Main Content wrapper */}
@@ -239,6 +261,10 @@ export default function App() {
           currentTab={currentTab}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onOpenExportImport={() => setIsExportImportOpen(true)}
+          onOpenDeviceSync={() => {
+            setUrlSyncRoomCode(null);
+            setIsDeviceSyncOpen(true);
+          }}
           userName="ionutvlss"
         />
 
@@ -486,6 +512,27 @@ export default function App() {
             setProducts(resetList);
           }}
           onClose={() => setIsExportImportOpen(false)}
+          onOpenDeviceSync={() => {
+            setIsExportImportOpen(false);
+            setUrlSyncRoomCode(null);
+            setIsDeviceSyncOpen(true);
+          }}
+        />
+      )}
+
+      {isDeviceSyncOpen && (
+        <DeviceSyncModal
+          products={products}
+          initialSyncCode={urlSyncRoomCode}
+          onSyncSuccess={(synced) => {
+            updateProducts(synced);
+            const freshCategories = storageService.getCategories();
+            setCategories(freshCategories);
+          }}
+          onClose={() => {
+            setIsDeviceSyncOpen(false);
+            setUrlSyncRoomCode(null);
+          }}
         />
       )}
     </div>
