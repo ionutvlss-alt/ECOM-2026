@@ -5,6 +5,7 @@ interface HeaderBarProps {
   currentTab: string;
   onOpenMobileSidebar: () => void;
   onOpenExportImport: () => void;
+  userName?: string;
 }
 
 const TAB_TITLES: Record<string, string> = {
@@ -20,6 +21,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   currentTab,
   onOpenMobileSidebar,
   onOpenExportImport,
+  userName = 'ionutvlss',
 }) => {
   return (
     <header className="h-14 border-b border-neutral-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
@@ -67,10 +69,13 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
         <div className="w-px h-4 bg-neutral-200 mx-1" />
 
         <div className="flex items-center gap-2 cursor-pointer p-1 rounded-lg hover:bg-neutral-100 transition-colors">
-          <div className="w-7 h-7 rounded-full bg-[#edd9ce] text-[#784d3b] font-bold text-xs flex items-center justify-center">
-            AM
+          <div className="w-7 h-7 rounded-full bg-[#0f4a3c] text-emerald-200 font-bold text-xs flex items-center justify-center shadow-xs">
+            IV
           </div>
-          <span className="text-xs text-neutral-500">▾</span>
+          <span className="text-xs font-semibold text-neutral-800 hidden sm:inline">
+            {userName}
+          </span>
+          <span className="text-xs text-neutral-400">▾</span>
         </div>
       </div>
     </header>

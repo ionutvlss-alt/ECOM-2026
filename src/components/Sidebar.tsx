@@ -32,8 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   productsCount,
   testedCount,
   testingCount,
-  userName = 'Alex M.',
-  userEmail = 'Personal workspace',
+  userName = 'ionutvlss',
+  userEmail = 'ionutvlss • Personal workspace',
   isOpenMobile,
   onCloseMobile,
 }) => {
@@ -209,8 +209,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="flex items-center justify-between px-2 pt-1">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-[#edd9ce] text-[#784d3b] font-bold text-xs flex items-center justify-center">
-                AM
+              <div className="w-8 h-8 rounded-full bg-[#0f4a3c] text-emerald-200 font-bold text-xs flex items-center justify-center shadow-xs">
+                IV
               </div>
               <div className="text-left">
                 <div className="text-xs font-semibold text-neutral-900 leading-tight">

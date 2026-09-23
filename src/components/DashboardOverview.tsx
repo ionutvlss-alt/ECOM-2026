@@ -31,7 +31,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   onNavigateToCatalog,
   onNavigateToCampaigns,
   onOpenNewProduct,
-  userName = 'Alex',
+  userName = 'ionutvlss',
 }) => {
   const [chartRange, setChartRange] = useState('6_months');
 
@@ -47,20 +47,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   const ratedProducts = products.filter((p) => p.overallRating && p.overallRating > 0);
   const avgRating = ratedProducts.length > 0
     ? (ratedProducts.reduce((sum, p) => sum + (p.overallRating || 0), 0) / ratedProducts.length).toFixed(1)
-    : '4.6';
+    : '-';
 
   // Total spent / value
   const totalSpent = products.reduce((sum, p) => sum + (p.price || 0), 0);
 
-  // Audio best rating insight computation
-  const audioProducts = products.filter(
-    (p) => p.category.toLowerCase().includes('audio') || p.title.toLowerCase().includes('căști')
-  );
-  const audioAvg = audioProducts.length > 0
-    ? (audioProducts.reduce((sum, p) => sum + (p.overallRating || 0), 0) / audioProducts.length).toFixed(1)
-    : '4.8';
-
-  // Date formatting for the kicker (matching Romanian uppercase date from screenshot: "MARȚI, 23 SEPTEMBRIE 2026")
+  // Date formatting for the kicker
   const today = new Date();
   const dateString = today.toLocaleDateString('ro-RO', {
     weekday: 'long',
@@ -69,15 +61,48 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
     year: 'numeric',
   }).toUpperCase();
 
-  // Monthly activity chart data (mock progression aligned with screenshot)
-  const monthlyData = [
-    { month: 'Apr', count: 2, height: '35%' },
-    { month: 'Mai', count: 4, height: '60%' },
-    { month: 'Iun', count: 5, height: '75%' },
-    { month: 'Iul', count: 3, height: '50%' },
-    { month: 'Aug', count: 5, height: '80%' },
-    { month: 'Sep', count: 8, height: '100%', isCurrent: true },
-  ];
+  // Current month calculations
+  const productsThisMonth = products.filter(p => {
+    const d = new Date(p.createdAt || '');
+    return !isNaN(d.getTime()) && d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+  }).length;
+
+  const spentThisMonth = products.filter(p => {
+    const d = new Date(p.createdAt || '');
+    return !isNaN(d.getTime()) && d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth();
+  }).reduce((sum, p) => sum + (p.price || 0), 0);
+
+  // Dynamic monthly activity chart data calculated from products
+  const monthNames = ['Ian', 'Feb', 'Mar', 'Apr', 'Mai', 'Iun', 'Iul', 'Aug', 'Sep', 'Oct', 'Noi', 'Dec'];
+  const monthsCount = chartRange === '12_months' ? 12 : 6;
+  const rawMonthly = Array.from({ length: monthsCount }).map((_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - (monthsCount - 1 - i), 1);
+    const mIndex = d.getMonth();
+    const yVal = d.getFullYear();
+    const count = products.filter(p => {
+      const pDate = new Date(p.completedTestingAt || p.createdAt || p.startedTestingAt || '');
+      return !isNaN(pDate.getTime()) && pDate.getMonth() === mIndex && pDate.getFullYear() === yVal;
+    }).length;
+    return {
+      month: monthNames[mIndex],
+      count,
+      isCurrent: i === monthsCount - 1,
+    };
+  });
+
+  const maxCount = Math.max(...rawMonthly.map(m => m.count), 1);
+  const monthlyData = rawMonthly.map(m => ({
+    ...m,
+    height: m.count > 0 ? `${Math.max(15, Math.round((m.count / maxCount) * 100))}%` : '4px',
+  }));
+
+  // Audio best rating insight computation
+  const audioProducts = products.filter(
+    (p) => p.category.toLowerCase().includes('audio') || p.title.toLowerCase().includes('căști')
+  );
+  const audioAvg = audioProducts.length > 0
+    ? (audioProducts.reduce((sum, p) => sum + (p.overallRating || 0), 0) / audioProducts.length).toFixed(1)
+    : null;
 
   return (
     <div className="space-y-8">
@@ -115,16 +140,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="w-8 h-8 rounded-lg bg-[#eaf3ee] flex items-center justify-center text-[#0f4a3c]">
               <Package className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold text-[#0f4a3c] flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" />
-              +12%
-            </span>
+            {productsThisMonth > 0 ? (
+              <span className="text-xs font-semibold text-[#0f4a3c] flex items-center gap-0.5">
+                <TrendingUp className="w-3 h-3" />
+                +{productsThisMonth}
+              </span>
+            ) : null}
           </div>
           <div className="text-xs text-neutral-500 font-medium">Total produse</div>
           <div className="text-3xl font-bold font-mono tracking-tight text-neutral-900 mt-1 tabular-nums">
             {totalProducts}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">+4 luna aceasta</div>
+          <div className="text-[11px] text-neutral-400 mt-1">
+            {totalProducts === 0 ? '0 produse adăugate' : `+${productsThisMonth} luna aceasta`}
+          </div>
         </div>
 
         {/* Card 2: Testate */}
@@ -136,10 +165,12 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <div className="w-8 h-8 rounded-lg bg-[#eaf3ee] flex items-center justify-center text-[#0f4a3c]">
               <Check className="w-4 h-4" />
             </div>
-            <span className="text-xs font-semibold text-[#0f4a3c] flex items-center gap-0.5">
-              <TrendingUp className="w-3 h-3" />
-              +12%
-            </span>
+            {testedProducts.length > 0 ? (
+              <span className="text-xs font-semibold text-[#0f4a3c] flex items-center gap-0.5">
+                <TrendingUp className="w-3 h-3" />
+                {testedPercent}%
+              </span>
+            ) : null}
           </div>
           <div className="text-xs text-neutral-500 font-medium">Testate</div>
           <div className="text-3xl font-bold font-mono tracking-tight text-neutral-900 mt-1 tabular-nums">
@@ -164,7 +195,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="text-3xl font-bold font-mono tracking-tight text-neutral-900 mt-1 tabular-nums">
             {avgRating}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">din 5.0</div>
+          <div className="text-[11px] text-neutral-400 mt-1">
+            {ratedProducts.length > 0 ? `${ratedProducts.length} produse evaluate` : 'din 5.0'}
+          </div>
         </div>
 
         {/* Card 4: Cheltuit anul acesta */}
@@ -178,7 +211,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-neutral-900 mt-1 tabular-nums truncate">
             {totalSpent.toLocaleString('ro-RO')} RON
           </div>
-          <div className="text-[11px] text-neutral-400 mt-1">+320 RON luna aceasta</div>
+          <div className="text-[11px] text-neutral-400 mt-1">
+            {spentThisMonth > 0 ? `+${spentThisMonth.toLocaleString('ro-RO')} RON luna aceasta` : '0 RON luna aceasta'}
+          </div>
         </div>
       </div>
 
@@ -202,7 +237,6 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               >
                 <option value="6_months">Ultimele 6 luni</option>
                 <option value="12_months">Ultimul an</option>
-                <option value="all_time">Toată activitatea</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -220,7 +254,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                     className={`w-full rounded-lg transition-all duration-300 ${
                       item.isCurrent
                         ? 'bg-[#0f4a3c]'
-                        : 'bg-[#d2e8dd] hover:bg-[#beddcc]'
+                        : item.count > 0
+                        ? 'bg-[#d2e8dd] hover:bg-[#beddcc]'
+                        : 'bg-neutral-200/70 hover:bg-neutral-300'
                     }`}
                     style={{ height: item.height }}
                   />
@@ -256,10 +292,18 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               INSIGHT SĂPTĂMÂNAL
             </div>
             <h4 className="text-base sm:text-lg font-bold text-white mt-1 leading-snug">
-              Produsele audio au cel mai bun scor mediu.
+              {totalProducts === 0
+                ? 'Workspace-ul tău este pregătit.'
+                : audioAvg
+                ? 'Produsele audio au cel mai bun scor mediu.'
+                : 'Jurnalul tău de testare se dezvoltă.'}
             </h4>
             <p className="text-xs text-emerald-100/70 mt-2 leading-relaxed">
-              Căștile și accesoriile de sunet testate au o medie de {audioAvg}★, depășind celelalte categorii cu 14%.
+              {totalProducts === 0
+                ? 'Nu ai încă produse înregistrate. Adaugă primul produs pentru a începe monitorizarea activității și obținerea recomandărilor automate.'
+                : audioAvg
+                ? `Căștile și accesoriile de sunet testate au o medie de ${audioAvg}★.`
+                : `Ai ${totalProducts} produse înregistrate în colecția ta personală.`}
             </p>
           </div>
 

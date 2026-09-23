@@ -1,18 +1,23 @@
 import { Product } from '../types/product';
 import { INITIAL_PRODUCTS } from '../data/initialProducts';
 
-const STORAGE_KEY = 'review_tracker_products_v1';
+const STORAGE_KEY = 'review_tracker_products_v2';
 
 export const storageService = {
   getProducts: (): Product[] => {
     try {
+      // Curăță datele din versiunea v1 demonstrativă dacă există
+      if (localStorage.getItem('review_tracker_products_v1')) {
+        localStorage.removeItem('review_tracker_products_v1');
+      }
+
       const stored = localStorage.getItem(STORAGE_KEY);
       if (!stored) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PRODUCTS));
         return INITIAL_PRODUCTS;
       }
       const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
       return INITIAL_PRODUCTS;
@@ -34,11 +39,12 @@ export const storageService = {
 
   resetToDefault: (): Product[] => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PRODUCTS));
-      return INITIAL_PRODUCTS;
+      localStorage.removeItem('review_tracker_products_v1');
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+      return [];
     } catch (err) {
       console.error('Eroare la resetarea produselor:', err);
-      return INITIAL_PRODUCTS;
+      return [];
     }
   },
 

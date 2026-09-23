@@ -215,8 +215,8 @@ export default function App() {
         productsCount={products.length}
         testedCount={testedCount}
         testingCount={testingCount}
-        userName="Alex M."
-        userEmail="Personal workspace"
+        userName="ionutvlss"
+        userEmail="ionutvlss • Personal workspace"
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -228,6 +228,7 @@ export default function App() {
           currentTab={currentTab}
           onOpenMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onOpenExportImport={() => setIsExportImportOpen(true)}
+          userName="ionutvlss"
         />
 
         {/* Workspace Body */}
@@ -248,7 +249,7 @@ export default function App() {
                 setEditingProduct(null);
                 setIsNewProductOpen(true);
               }}
-              userName="Alex"
+              userName="ionutvlss"
             />
           )}
 
@@ -287,7 +288,27 @@ export default function App() {
               />
 
               {/* View Render */}
-              {filteredProducts.length === 0 ? (
+              {products.length === 0 ? (
+                <div className="border border-dashed border-neutral-200 rounded-2xl p-12 text-center bg-white">
+                  <div className="w-12 h-12 rounded-2xl bg-[#eaf3ee] flex items-center justify-center text-[#0f4a3c] mx-auto mb-3">
+                    <Package className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-base font-bold text-neutral-900">Jurnalul tău de produse este gol</h3>
+                  <p className="text-xs text-neutral-500 max-w-sm mx-auto mt-1">
+                    Începe evidența apăsând pe butonul de mai jos pentru a adăuga primul dispozitiv sau articol pe care dorești să-l testezi.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setIsNewProductOpen(true);
+                    }}
+                    className="mt-4 px-4 py-2 bg-[#0f4a3c] hover:bg-[#0c3c31] text-white text-xs font-semibold rounded-xl transition-colors inline-flex items-center gap-2 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>Adaugă primul produs</span>
+                  </button>
+                </div>
+              ) : filteredProducts.length === 0 ? (
                 <div className="border border-dashed border-neutral-200 rounded-2xl p-12 text-center bg-white">
                   <AlertCircle className="w-10 h-10 text-neutral-300 mx-auto mb-3" />
                   <h3 className="text-base font-semibold text-neutral-900">Niciun produs găsit</h3>
