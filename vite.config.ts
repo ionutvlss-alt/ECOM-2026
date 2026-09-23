@@ -11,14 +11,16 @@ export default defineConfig(() => {
       tailwindcss(),
       {
         name: 'serve-dev-entry',
-        transformIndexHtml(html, ctx) {
-          if (ctx.server) {
-            return html.replace(
-              /<script type="module" crossorigin src="[^"]+"><\/script>/,
-              '<script type="module" src="/src/main.tsx"></script>'
-            );
+        transformIndexHtml: {
+          order: 'pre' as const,
+          handler(html: string) {
+            return html
+              .replace(
+                /<script type="module" crossorigin src="[^"]+"><\/script>/g,
+                '<script type="module" src="/src/main.tsx"></script>'
+              )
+              .replace(/<link rel="stylesheet" crossorigin href="[^"]+">/g, '');
           }
-          return html;
         }
       }
     ],
