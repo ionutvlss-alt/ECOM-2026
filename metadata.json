@@ -1,0 +1,6 @@
+{
+  "name": "ReviewTracker - Evidență & Testare Produse",
+  "description": "Dashboard profesional pentru monitorizarea produselor de testat și testate, încărcare fotografii, calificative, recenzii personale și management campanii.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
