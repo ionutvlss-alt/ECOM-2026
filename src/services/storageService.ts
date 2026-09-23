@@ -327,5 +327,101 @@ export const storageService = {
       reader.onerror = () => reject(new Error('Eroare la citirea fișierului.'));
       reader.readAsText(file);
     });
+  },
+
+  // Scanare avansată în tot spațiul browserului (localStorage, sessionStorage, IndexedDB)
+  // Caută orice fragment JSON sau produs rămas în memorie
+  deepScanBrowserStorage: async (): Promise<{ recovered: Product[]; totalFound: number }> => {
+    const recoveredMap = new Map<string, Product>();
+
+    // 1. Scanăm produsele curente
+    try {
+      const current = storageService.getProducts();
+      current.forEach((p) => {
+        if (p && p.id) recoveredMap.set(p.id, p);
+      });
+    } catch {}
+
+    // 2. Scanăm absolut toate cheile din localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key) continue;
+        const val = localStorage.getItem(key);
+        if (!val) continue;
+
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item) => {
+              if (item && typeof item === 'object' && item.title) {
+                const id = item.id || `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                if (!recoveredMap.has(id)) {
+                  recoveredMap.set(id, { ...item, id });
+                }
+              }
+            });
+          } else if (parsed && typeof parsed === 'object' && parsed.title) {
+            const id = parsed.id || `rec_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            if (!recoveredMap.has(id)) {
+              recoveredMap.set(id, { ...parsed, id });
+            }
+          }
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Eroare scan localStorage:', e);
+    }
+
+    // 3. Scanăm absolut toate cheile din sessionStorage
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (!key) continue;
+        const val = sessionStorage.getItem(key);
+        if (!val) continue;
+
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item) => {
+              if (item && typeof item === 'object' && item.title) {
+                const id = item.id || `rec_ses_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                if (!recoveredMap.has(id)) {
+                  recoveredMap.set(id, { ...item, id });
+                }
+              }
+            });
+          }
+        } catch {}
+      }
+    } catch (e) {}
+
+    // 4. Scanăm IndexedDB
+    try {
+      const idbList = await indexedDBService.getProducts();
+      idbList.forEach((p) => {
+        if (p && p.id && !recoveredMap.has(p.id)) {
+          recoveredMap.set(p.id, p);
+        }
+      });
+    } catch {}
+
+    const allRecovered = Array.from(recoveredMap.values());
+    if (allRecovered.length > 0) {
+      storageService.saveProducts(allRecovered);
+    }
+
+    return { recovered: allRecovered, totalFound: allRecovered.length };
   }
 };
+
+// Expunere utilitar global pentru recuperare rapidă din consola browserului F12
+if (typeof window !== 'undefined') {
+  (window as any).recoverMyProducts = async () => {
+    console.log('Se scanează memoria browserului pentru produse pierdute...');
+    const result = await storageService.deepScanBrowserStorage();
+    console.log(`Scanare finalizată! S-au găsit și salvat ${result.totalFound} produse:`, result.recovered);
+    return result;
+  };
+}

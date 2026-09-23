@@ -50,14 +50,14 @@ export const ExportImportModal: React.FC<ExportImportModalProps> = ({
     setIsScanning(true);
     setErrorStatus(null);
     try {
-      const res = await storageService.syncWithIndexedDB();
-      const allFound = storageService.getProducts();
+      const scanResult = await storageService.deepScanBrowserStorage();
+      const allFound = scanResult.recovered;
 
       if (allFound.length > products.length) {
-        setImportStatus(`Am recuperat ${allFound.length - products.length} produse găsite în baza locală! Total acum: ${allFound.length}`);
+        setImportStatus(`Recuperare reușită! S-au găsit ${allFound.length - products.length} produse suplimentare în memoria browserului! Total: ${allFound.length}`);
         onImportSuccess(allFound);
       } else {
-        setImportStatus(`Baza de date este complet sincronizată. Total produse active: ${allFound.length}`);
+        setImportStatus(`Scanare completă: ${allFound.length} produse sunt active și securizate în baza locală.`);
       }
     } catch (err: any) {
       setErrorStatus('Eroare la scanarea bazei de date: ' + err.message);
