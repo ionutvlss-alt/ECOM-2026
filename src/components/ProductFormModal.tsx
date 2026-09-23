@@ -13,8 +13,10 @@ import {
   Link,
   Layers,
   Sparkles,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
+import { compressImageFile, compressBase64Image } from '../utils/imageCompressor';
 
 interface ProductFormModalProps {
   initialProduct?: Product | null;
@@ -79,26 +81,38 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const calculatedRoas = adSpend > 0 ? Number((revenue / adSpend).toFixed(2)) : 0;
   const calculatedCpa = ordersCount > 0 ? Number((adSpend / ordersCount).toFixed(1)) : 0;
 
-  // Încărcare imagini locale
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isCompressingImages, setIsCompressingImages] = useState(false);
+
+  // Încărcare imagini locale cu optimizare și compresie automată (previne depășirea spațiului)
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        const base64Url = uploadEvent.target?.result as string;
-        if (base64Url) {
-          setImages((prev) => [...prev, base64Url]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    setIsCompressingImages(true);
+    try {
+      const fileList = Array.from(files);
+      const compressedResults = await Promise.all(
+        fileList.map((file) => compressImageFile(file, 1200, 1200, 0.8))
+      );
+      const valid = compressedResults.filter((img) => Boolean(img));
+      setImages((prev) => [...prev, ...valid]);
+    } catch (err) {
+      console.error('Eroare optimizare imagini:', err);
+    } finally {
+      setIsCompressingImages(false);
+      e.target.value = '';
+    }
   };
 
-  const handleAddImageUrl = () => {
-    if (!imageUrlInput.trim()) return;
-    setImages((prev) => [...prev, imageUrlInput.trim()]);
+  const handleAddImageUrl = async () => {
+    const input = imageUrlInput.trim();
+    if (!input) return;
+    if (input.startsWith('data:image')) {
+      const compressed = await compressBase64Image(input, 1200, 1200, 0.8);
+      setImages((prev) => [...prev, compressed]);
+    } else {
+      setImages((prev) => [...prev, input]);
+    }
     setImageUrlInput('');
   };
 
@@ -581,12 +595,22 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 Adaugă URL
               </button>
               <label className="px-4 py-2 bg-[#eaf3ee] hover:bg-[#d8ece1] text-[#0f4a3c] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shrink-0">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Încarcă fișier</span>
+                {isCompressingImages ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Se optimizează...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Încarcă fișier</span>
+                  </>
+                )}
                 <input
                   type="file"
                   multiple
                   accept="image/*"
+                  disabled={isCompressingImages}
                   onChange={handleFileUpload}
                   className="hidden"
                 />

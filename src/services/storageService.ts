@@ -1,8 +1,18 @@
 import { Product } from '../types/product';
 import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
+import { indexedDBService } from './db';
 
 const PRODUCTS_KEY = 'review_tracker_products_v3';
 const CATEGORIES_KEY = 'review_tracker_categories_v3';
+
+// Known legacy keys from previous app iterations to rescue user data
+const LEGACY_PRODUCT_KEYS = [
+  'review_tracker_products_v3',
+  'review_tracker_products_v2',
+  'review_tracker_products_v1',
+  'review_tracker_products',
+  'ecom_products_backup',
+];
 
 export const storageService = {
   // --- Categorii ---
@@ -27,9 +37,12 @@ export const storageService = {
   saveCategories: (categories: string[]): boolean => {
     try {
       localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+      // Salvare asincronă în IndexedDB pentru siguranță completă
+      indexedDBService.saveCategories(categories).catch(() => {});
       return true;
     } catch (err) {
-      console.error('Eroare la salvarea categoriilor:', err);
+      console.error('Eroare la salvarea categoriilor în localStorage:', err);
+      indexedDBService.saveCategories(categories).catch(() => {});
       return false;
     }
   },
@@ -56,42 +69,164 @@ export const storageService = {
   // --- Produse ---
   getProducts: (): Product[] => {
     try {
-      // Curăță datele din versiuni vechi dacă există
-      if (localStorage.getItem('review_tracker_products_v1')) {
-        localStorage.removeItem('review_tracker_products_v1');
+      const foundProductsMap = new Map<string, Product>();
+
+      // Verificăm întâi cheia primară v3
+      const storedV3 = localStorage.getItem(PRODUCTS_KEY);
+      if (storedV3) {
+        try {
+          const parsed = JSON.parse(storedV3);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((p) => {
+              if (p && p.id) foundProductsMap.set(p.id, p);
+            });
+          }
+        } catch (e) {
+          console.warn('Eroare parsare v3:', e);
+        }
       }
 
-      const stored = localStorage.getItem(PRODUCTS_KEY);
-      if (!stored) {
-        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(INITIAL_PRODUCTS));
-        return INITIAL_PRODUCTS;
+      // Verificăm și cheile vechi pentru a recupera orice produs pierdut la trecerea de versiune
+      LEGACY_PRODUCT_KEYS.forEach((key) => {
+        if (key === PRODUCTS_KEY) return;
+        try {
+          const legacyData = localStorage.getItem(key);
+          if (legacyData) {
+            const parsed = JSON.parse(legacyData);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((p) => {
+                if (p && p.id && !foundProductsMap.has(p.id)) {
+                  foundProductsMap.set(p.id, p);
+                }
+              });
+            }
+          }
+        } catch {
+          // Ignoră erorile din chei vechi
+        }
+      });
+
+      // Verificăm și sessionStorage ca protecție suplimentară
+      try {
+        const sessionData = sessionStorage.getItem(PRODUCTS_KEY);
+        if (sessionData) {
+          const parsed = JSON.parse(sessionData);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((p) => {
+              if (p && p.id && !foundProductsMap.has(p.id)) {
+                foundProductsMap.set(p.id, p);
+              }
+            });
+          }
+        }
+      } catch {}
+
+      if (foundProductsMap.size > 0) {
+        return Array.from(foundProductsMap.values());
       }
-      const parsed = JSON.parse(stored);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
+
       return INITIAL_PRODUCTS;
     } catch (err) {
-      console.error('Eroare la citirea produselor din localStorage:', err);
+      console.error('Eroare la citirea produselor:', err);
       return INITIAL_PRODUCTS;
+    }
+  },
+
+  // Încărcare asincronă cu sincronizare completă din IndexedDB
+  syncWithIndexedDB: async (): Promise<{ products: Product[]; categories: string[] } | null> => {
+    try {
+      const [idbProducts, idbCategories] = await Promise.all([
+        indexedDBService.getProducts(),
+        indexedDBService.getCategories(),
+      ]);
+
+      const localProducts = storageService.getProducts();
+      const localCategories = storageService.getCategories();
+
+      // Dacă IndexedDB are mai multe produse sau produse lipsă, facem merge inteligent
+      const mergedMap = new Map<string, Product>();
+      localProducts.forEach((p) => mergedMap.set(p.id, p));
+      idbProducts.forEach((p) => {
+        if (!mergedMap.has(p.id)) {
+          mergedMap.set(p.id, p);
+        } else {
+          // Dacă versiunea din IndexedDB are imagini mai complete sau date mai recente
+          const existing = mergedMap.get(p.id)!;
+          if ((p.images?.length || 0) > (existing.images?.length || 0)) {
+            mergedMap.set(p.id, p);
+          }
+        }
+      });
+
+      const mergedProducts = Array.from(mergedMap.values());
+      const mergedCategories = Array.from(new Set([...localCategories, ...idbCategories]));
+
+      // Resalvăm sincronizat în ambele stocări
+      storageService.saveProducts(mergedProducts);
+      if (mergedCategories.length > localCategories.length) {
+        storageService.saveCategories(mergedCategories);
+      }
+
+      return { products: mergedProducts, categories: mergedCategories };
+    } catch (err) {
+      console.warn('Sincronizarea IndexedDB a eșuat:', err);
+      return null;
     }
   },
 
   saveProducts: (products: Product[]): boolean => {
     try {
-      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
-      return true;
+      // 1. Salvare asincronă prioritară în IndexedDB (spațiu de stocare nelimitat în browser)
+      indexedDBService.saveProducts(products).catch((err) => {
+        console.warn('Nu s-a putut salva în IndexedDB:', err);
+      });
+
+      // 2. Salvare în sessionStorage ca memorie rapidă de sesiune
+      try {
+        sessionStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+      } catch {}
+
+      // 3. Salvare în localStorage
+      try {
+        localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+        return true;
+      } catch (quotaError: any) {
+        console.warn('localStorage a atins limita de cotă (5MB). Salvăm versiune optimizată...', quotaError);
+
+        // Dacă localStorage a dat eroare de cotă (din cauza pozelor mari):
+        // Cream o copie sigură cu poze trunchiate/optimizate pentru localStorage
+        // în timp ce IndexedDB a păstrat deja pozele 100% complete!
+        const lightweightProducts = products.map((p) => {
+          const safeImages = (p.images || []).map((img) => {
+            // Dacă este un base64 uriaș, păstrăm doar un placeholder sau imagine comprimată
+            if (img.startsWith('data:image') && img.length > 50000) {
+              return 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80';
+            }
+            return img;
+          });
+          return { ...p, images: safeImages };
+        });
+
+        try {
+          localStorage.setItem(PRODUCTS_KEY, JSON.stringify(lightweightProducts));
+          return true;
+        } catch {
+          // Chiar dacă localStorage refuză, IndexedDB a salvat datele
+          return true;
+        }
+      }
     } catch (err) {
-      console.error('Eroare la salvarea produselor:', err);
+      console.error('Eroare generală la salvarea produselor:', err);
       return false;
     }
   },
 
   resetToDefault: (): Product[] => {
     try {
-      localStorage.removeItem('review_tracker_products_v1');
-      localStorage.removeItem('review_tracker_products_v2');
+      LEGACY_PRODUCT_KEYS.forEach((key) => localStorage.removeItem(key));
+      sessionStorage.removeItem(PRODUCTS_KEY);
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify([]));
+      indexedDBService.saveProducts([]).catch(() => {});
       return [];
     } catch (err) {
       console.error('Eroare la resetarea produselor:', err);

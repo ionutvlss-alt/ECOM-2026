@@ -50,6 +50,20 @@ export default function App() {
     storageService.saveProducts(newProducts);
   };
 
+  // Sincronizare la pornire cu IndexedDB și recuperare date extinse
+  useEffect(() => {
+    storageService.syncWithIndexedDB().then((res) => {
+      if (res) {
+        if (res.products && res.products.length > products.length) {
+          setProducts(res.products);
+        }
+        if (res.categories && res.categories.length > categories.length) {
+          setCategories(res.categories);
+        }
+      }
+    });
+  }, []);
+
   // Keep selectedProduct in sync
   useEffect(() => {
     if (selectedProduct) {
