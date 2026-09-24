@@ -21,6 +21,8 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
 import { ExportImportModal } from './components/ExportImportModal';
 import { DeviceSyncModal } from './components/DeviceSyncModal';
+import { AuthModal } from './components/AuthModal';
+import { authService, AuthUser } from './services/authService';
 import { Plus, Package, AlertCircle } from 'lucide-react';
 
 export default function App() {
@@ -29,6 +31,8 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports'>('dashboard');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   // Filter state
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -62,11 +66,31 @@ export default function App() {
     } catch {}
   }, []);
 
-  // Sync products to storage
+  // Sync products to storage and cloud
   const updateProducts = (newProducts: Product[]) => {
     setProducts(newProducts);
     storageService.saveProducts(newProducts);
+    if (currentUser) {
+      authService.syncProductsToCloud(currentUser, newProducts).catch((err) => {
+        console.warn('Eroare sincronizare cloud:', err);
+      });
+    }
   };
+
+  // Auth listener & automatic background sync for logged in user
+  useEffect(() => {
+    const unsub = authService.subscribeAuth((user) => {
+      setCurrentUser(user);
+      if (user) {
+        authService.claimAndSyncProducts(user).then((synced) => {
+          if (synced && synced.length > 0) {
+            setProducts(synced);
+          }
+        }).catch(() => {});
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Sincronizare la pornire cu IndexedDB și recuperare date extinse
   useEffect(() => {
@@ -244,14 +268,16 @@ export default function App() {
         productsCount={products.length}
         winnersCount={winnersCount}
         testingCount={testingCount}
-        userName="ionutvlss"
-        userEmail="ionutvlss • E-commerce Workspace"
+        userName={currentUser?.username || "ionutvlss"}
+        userEmail={currentUser ? `${currentUser.displayName} • ${currentUser.email}` : "ionutvlss • E-commerce Workspace"}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onOpenDeviceSync={() => {
           setUrlSyncRoomCode(null);
           setIsDeviceSyncOpen(true);
         }}
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthOpen(true)}
       />
 
       {/* Main Content wrapper */}
@@ -265,7 +291,9 @@ export default function App() {
             setUrlSyncRoomCode(null);
             setIsDeviceSyncOpen(true);
           }}
-          userName="ionutvlss"
+          onOpenAuth={() => setIsAuthOpen(true)}
+          currentUser={currentUser}
+          userName={currentUser?.username || "ionutvlss"}
         />
 
         {/* Workspace Body */}
@@ -533,6 +561,25 @@ export default function App() {
             setIsDeviceSyncOpen(false);
             setUrlSyncRoomCode(null);
           }}
+        />
+      )}
+
+      {isAuthOpen && (
+        <AuthModal
+          currentUser={currentUser}
+          productsCount={products.length}
+          onLoginSuccess={(user, loadedProducts) => {
+            setCurrentUser(user);
+            if (loadedProducts && loadedProducts.length > 0) {
+              setProducts(loadedProducts);
+              storageService.saveProducts(loadedProducts);
+            }
+          }}
+          onLogout={() => {
+            authService.logout();
+            setCurrentUser(null);
+          }}
+          onClose={() => setIsAuthOpen(false)}
         />
       )}
     </div>

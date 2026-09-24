@@ -9,8 +9,12 @@ import {
   Image as ImageIcon,
   Sparkles,
   TrendingUp,
-  Smartphone
+  Smartphone,
+  Cloud,
+  LogIn,
+  ShieldCheck
 } from 'lucide-react';
+import { AuthUser } from '../services/authService';
 
 interface SidebarProps {
   currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports';
@@ -23,6 +27,8 @@ interface SidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   onOpenDeviceSync?: () => void;
+  currentUser?: AuthUser | null;
+  onOpenAuth?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,6 +42,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   onOpenDeviceSync,
+  currentUser = null,
+  onOpenAuth,
 }) => {
   const handleNav = (tab: typeof currentTab) => {
     onTabChange(tab);
@@ -216,20 +224,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Profile Card */}
-        <div className="p-4 border-t border-neutral-100 flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-full bg-[#0f4a3c] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-              IV
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-neutral-900 truncate">
-                {userName}
+        <div className="p-4 border-t border-neutral-150">
+          {currentUser ? (
+            <button
+              onClick={() => {
+                if (onOpenAuth) onOpenAuth();
+                onCloseMobile();
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-neutral-100 transition-colors text-left cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.displayName}
+                    className="w-8 h-8 rounded-full object-cover border border-[#0f4a3c]/30 shadow-2xs shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-[#0f4a3c] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                    {currentUser.displayName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-neutral-900 truncate">
+                    {currentUser.displayName}
+                  </div>
+                  <div className="text-[10px] text-emerald-700 flex items-center gap-1 font-semibold truncate">
+                    <Cloud className="w-3 h-3" />
+                    <span>Sincronizat</span>
+                  </div>
+                </div>
               </div>
-              <div className="text-[10px] text-neutral-400 truncate">
-                {userEmail}
-              </div>
-            </div>
-          </div>
+              <ShieldCheck className="w-4 h-4 text-[#0f4a3c] shrink-0" />
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (onOpenAuth) onOpenAuth();
+                onCloseMobile();
+              }}
+              className="w-full py-2.5 px-3 bg-[#0f4a3c] hover:bg-[#0c3b30] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Intră în Cont (Sincronizare)</span>
+            </button>
+          )}
         </div>
       </aside>
     </>

@@ -1,11 +1,14 @@
 import React from 'react';
-import { Menu, Database, Smartphone } from 'lucide-react';
+import { Menu, Database, Smartphone, Cloud, UserCheck, LogIn } from 'lucide-react';
+import { AuthUser } from '../services/authService';
 
 interface HeaderBarProps {
   currentTab: string;
   onOpenMobileSidebar: () => void;
   onOpenExportImport: () => void;
   onOpenDeviceSync: () => void;
+  onOpenAuth: () => void;
+  currentUser: AuthUser | null;
   userName?: string;
 }
 
@@ -24,6 +27,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenMobileSidebar,
   onOpenExportImport,
   onOpenDeviceSync,
+  onOpenAuth,
+  currentUser,
   userName = 'ionutvlss',
 }) => {
   return (
@@ -49,14 +54,35 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 
       {/* Right: Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Auth / Cloud Sync Status Button */}
+        {currentUser ? (
+          <button
+            onClick={onOpenAuth}
+            className="px-2.5 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/80 rounded-lg flex items-center gap-1.5 border border-emerald-200 transition-colors cursor-pointer shadow-2xs"
+            title="Cont conectat și sincronizat în Cloud"
+          >
+            <Cloud className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+            <span className="hidden sm:inline">Cloud Activ</span>
+            <span className="sm:hidden font-bold">Cloud</span>
+          </button>
+        ) : (
+          <button
+            onClick={onOpenAuth}
+            className="px-2.5 py-1.5 text-xs font-bold text-white bg-[#0f4a3c] hover:bg-[#0c3b30] rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            title="Autentificare cont pentru sincronizare automată pe telefon"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Intră în Cont</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenDeviceSync}
           className="px-2.5 py-1.5 text-xs font-semibold text-[#0f4a3c] bg-[#eaf3ee] hover:bg-[#d9ece1] rounded-lg flex items-center gap-1.5 border border-[#cfe5d9] transition-colors cursor-pointer shadow-2xs"
           title="Sincronizare între telefon și calculator"
         >
           <Smartphone className="w-3.5 h-3.5 text-[#0f4a3c]" />
-          <span className="hidden sm:inline">Sincronizare Telefon (QR)</span>
-          <span className="sm:hidden font-bold">Sincronizează</span>
+          <span className="hidden md:inline">Transfer QR</span>
         </button>
 
         <button
@@ -65,19 +91,37 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           title="Backup & Export date"
         >
           <Database className="w-3.5 h-3.5 text-neutral-500" />
-          <span className="hidden sm:inline">Backup / Export</span>
+          <span className="hidden lg:inline">Backup</span>
         </button>
 
         <div className="w-px h-4 bg-neutral-200 mx-0.5 sm:mx-1" />
 
-        <div className="flex items-center gap-2 p-1 rounded-lg">
-          <div className="w-7 h-7 rounded-full bg-[#0f4a3c] text-white font-bold text-xs flex items-center justify-center shadow-xs">
-            IV
+        {/* User Profile avatar */}
+        <button
+          onClick={onOpenAuth}
+          className="flex items-center gap-2 p-1 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer text-left"
+          title="Gestionează contul"
+        >
+          {currentUser?.photoURL ? (
+            <img
+              src={currentUser.photoURL}
+              alt={currentUser.displayName}
+              className="w-7 h-7 rounded-full object-cover border border-[#0f4a3c]/30 shadow-xs"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-[#0f4a3c] text-white font-bold text-xs flex items-center justify-center shadow-xs">
+              {currentUser ? currentUser.displayName.slice(0, 2).toUpperCase() : 'IV'}
+            </div>
+          )}
+          <div className="hidden sm:flex flex-col">
+            <span className="text-xs font-semibold text-neutral-800 leading-tight">
+              {currentUser ? currentUser.username : userName}
+            </span>
+            <span className="text-[10px] text-neutral-400 leading-tight">
+              {currentUser ? 'Cont conectat' : 'Guest'}
+            </span>
           </div>
-          <span className="text-xs font-semibold text-neutral-800 hidden sm:inline">
-            {userName}
-          </span>
-        </div>
+        </button>
       </div>
     </header>
   );
