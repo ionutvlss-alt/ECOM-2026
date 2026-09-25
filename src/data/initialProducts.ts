@@ -25,6 +25,12 @@ export const AD_PLATFORMS: { id: string; label: string; badgeClass: string; bord
 ];
 
 export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, { label: string; color: string; bg: string; border: string }> = {
+  untested: {
+    label: 'Netestat',
+    color: 'text-slate-700',
+    bg: 'bg-slate-100',
+    border: 'border-slate-300',
+  },
   winner: {
     label: 'Winner (Scalat)',
     color: 'text-emerald-700',

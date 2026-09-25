@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Product } from '../types/product';
-import { FolderTree, Plus, Trash2, ArrowUpRight, TrendingUp, Layers, Check, Sparkles } from 'lucide-react';
+import { FolderTree, Plus, Trash2, ArrowUpRight, TrendingUp, Layers, Check, Sparkles, Edit2, X } from 'lucide-react';
+import { safeFormatNumber } from '../utils/productNormalizer';
 
 interface CategoriesViewProps {
   categories: string[];
   products: Product[];
   onAddCategory: (categoryName: string) => void;
   onDeleteCategory: (categoryName: string) => void;
+  onRenameCategory?: (oldName: string, newName: string) => void;
   onSelectCategoryFilter: (categoryName: string) => void;
 }
 
@@ -15,11 +17,14 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
   products,
   onAddCategory,
   onDeleteCategory,
+  onRenameCategory,
   onSelectCategoryFilter,
 }) => {
   const [newCatName, setNewCatName] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [editingCat, setEditingCat] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +42,24 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
     setNewCatName('');
     setErrorMsg('');
     setIsAdding(false);
+  };
+
+  const handleSaveRename = (oldName: string) => {
+    const trimmed = editingCatName.trim();
+    if (!trimmed) {
+      setEditingCat(null);
+      return;
+    }
+    if (trimmed.toLowerCase() !== oldName.toLowerCase() && categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      alert('Există deja o categorie cu acest nume.');
+      return;
+    }
+
+    if (onRenameCategory) {
+      onRenameCategory(oldName, trimmed);
+    }
+    setEditingCat(null);
+    setEditingCatName('');
   };
 
   return (
@@ -128,21 +151,69 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-3">
-                    <span className="text-xs font-bold text-neutral-900 bg-neutral-100 group-hover:bg-[#eaf3ee] group-hover:text-[#0f4a3c] transition-colors px-3 py-1 rounded-xl">
-                      {cat}
-                    </span>
+                    {editingCat === cat ? (
+                      <div className="flex items-center gap-1.5 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editingCatName}
+                          autoFocus
+                          onChange={(e) => setEditingCatName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveRename(cat);
+                            if (e.key === 'Escape') setEditingCat(null);
+                          }}
+                          className="w-full text-xs font-bold bg-neutral-50 border border-[#0f4a3c] rounded-lg px-2 py-1 text-neutral-900 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRename(cat)}
+                          className="p-1 bg-[#0f4a3c] text-white rounded-md hover:bg-[#0c3c31] transition-colors cursor-pointer"
+                          title="Salvează"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCat(null)}
+                          className="p-1 text-neutral-400 hover:text-neutral-700 rounded-md transition-colors cursor-pointer"
+                          title="Anulează"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-bold text-neutral-900 bg-neutral-100 group-hover:bg-[#eaf3ee] group-hover:text-[#0f4a3c] transition-colors px-3 py-1 rounded-xl">
+                        {cat}
+                      </span>
+                    )}
 
-                    <button
-                      onClick={() => {
-                        if (confirm(`Ești sigur că vrei să ștergi categoria "${cat}"?`)) {
-                          onDeleteCategory(cat);
-                        }
-                      }}
-                      className="p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                      title="Șterge categoria"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {editingCat !== cat && (
+                      <div className="flex items-center gap-1">
+                        {onRenameCategory && (
+                          <button
+                            onClick={() => {
+                              setEditingCat(cat);
+                              setEditingCatName(cat);
+                            }}
+                            className="p-1 text-neutral-400 hover:text-[#0f4a3c] hover:bg-[#eaf3ee] rounded-lg transition-colors cursor-pointer"
+                            title="Redenumește categoria"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Ești sigur că vrei să ștergi categoria "${cat}"?`)) {
+                              onDeleteCategory(cat);
+                            }
+                          }}
+                          className="p-1 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Șterge categoria"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-neutral-100 text-xs">
@@ -163,7 +234,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                     <div className="mt-1">
                       <span className="text-[10px] text-neutral-400 block uppercase font-medium">Spend Total</span>
                       <span className="font-mono font-semibold text-neutral-700 tabular-nums">
-                        {totalSpend.toLocaleString('ro-RO')} RON
+                        {safeFormatNumber(totalSpend)} RON
                       </span>
                     </div>
 
@@ -185,7 +256,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </button>
                   <span className="text-[11px] text-neutral-400 font-mono">
-                    {totalRev > 0 ? `Venit: ${totalRev.toLocaleString('ro-RO')} RON` : ''}
+                    {totalRev > 0 ? `Venit: ${safeFormatNumber(totalRev)} RON` : ''}
                   </span>
                 </div>
               </div>

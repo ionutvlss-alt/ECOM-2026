@@ -1,7 +1,8 @@
 import React from 'react';
 import { Product, CampaignStatus } from '../types/product';
-import { Megaphone, ArrowRight, ArrowLeft, CheckCircle2, TrendingUp, XCircle, Clock } from 'lucide-react';
+import { Globe, ListChecks } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { safeFormatNumber, calculateChecklistStats } from '../utils/productNormalizer';
 
 interface KanbanViewProps {
   products: Product[];
@@ -15,6 +16,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   onUpdateCampaignStatus,
 }) => {
   const columns: { status: CampaignStatus; title: string; color: string; dotColor: string }[] = [
+    { status: 'untested', title: 'Netestat (De pregătit)', color: 'text-slate-800', dotColor: 'bg-slate-400' },
     { status: 'testing', title: 'În testare activă', color: 'text-amber-800', dotColor: 'bg-amber-500' },
     { status: 'winner', title: 'Winner (Scalat)', color: 'text-emerald-800', dotColor: 'bg-emerald-600' },
     { status: 'promising', title: 'Promițător (Break-even)', color: 'text-blue-800', dotColor: 'bg-blue-500' },
@@ -22,11 +24,11 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
       {columns.map((col) => {
-        const colProducts = products.filter((p) => (p.campaign?.status || 'testing') === col.status);
-        const colSpend = colProducts.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-        const colRevenue = colProducts.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
+        const colProducts = products.filter((p) => (p?.campaign?.status || 'testing') === col.status);
+        const colSpend = colProducts.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+        const colRevenue = colProducts.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
         const colRoas = colSpend > 0 ? (colRevenue / colSpend).toFixed(2) : '-';
 
         return (
@@ -49,7 +51,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
 
             {/* Column Summary (Spend & Revenue) */}
             <div className="text-[11px] text-neutral-500 font-mono tabular-nums mb-3 px-1 flex justify-between border-b border-neutral-200/60 pb-2">
-              <span>Spend: <strong className="text-neutral-900">{colSpend.toLocaleString('ro-RO')} RON</strong></span>
+              <span>Spend: <strong className="text-neutral-900">{safeFormatNumber(colSpend)} RON</strong></span>
               <span>ROAS: <strong className="text-[#0f4a3c]">{colRoas !== '-' ? `${colRoas}x` : '—'}</strong></span>
             </div>
 
@@ -61,9 +63,9 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                 </div>
               ) : (
                 colProducts.map((product) => {
-                  const c = product.campaign || {
-                    platform: 'TikTok Ads',
-                    status: 'testing',
+                  const c = product?.campaign || {
+                    platform: 'Facebook Ads',
+                    status: 'testing' as CampaignStatus,
                     adSpend: 0,
                     revenue: 0,
                     ordersCount: 0,
@@ -107,15 +109,33 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                         </div>
                       </div>
 
+                      {/* Site Destinație & Progres Checklist Lansare */}
+                      {(() => {
+                        const chk = calculateChecklistStats(product?.checklist);
+                        if (!product.targetSite && chk.completed === 0) return null;
+                        return (
+                          <div className="flex items-center justify-between text-[10px] gap-1 px-2 py-1 bg-blue-50/80 rounded-lg border border-blue-200/60">
+                            <span className="font-semibold text-blue-900 truncate flex items-center gap-1 min-w-0">
+                              <Globe className="w-3 h-3 text-blue-600 shrink-0" />
+                              <span className="truncate">{product.targetSite || 'Site planificat'}</span>
+                            </span>
+                            <span className="font-mono text-[9px] font-bold text-blue-700 shrink-0 flex items-center gap-0.5 bg-white/80 px-1 py-0.2 rounded border border-blue-200/50">
+                              <ListChecks className="w-2.5 h-2.5 text-blue-600" />
+                              <span>{chk.completed}/{chk.total}</span>
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       {/* Performance KPIs */}
                       <div className="bg-neutral-50 p-2 rounded-lg text-[11px] font-mono grid grid-cols-2 gap-1 border border-neutral-100">
                         <div>
                           <span className="text-[9px] text-neutral-400 uppercase block">Spend:</span>
-                          <span className="font-semibold text-neutral-800">{c.adSpend} RON</span>
+                          <span className="font-semibold text-neutral-800">{safeFormatNumber(c.adSpend)} RON</span>
                         </div>
                         <div>
                           <span className="text-[9px] text-neutral-400 uppercase block">ROAS:</span>
-                          <span className="font-bold text-[#0f4a3c]">{c.roas && c.roas > 0 ? `${c.roas.toFixed(2)}x` : '—'}</span>
+                          <span className="font-bold text-[#0f4a3c]">{Number(c.roas) > 0 ? `${Number(c.roas).toFixed(2)}x` : '—'}</span>
                         </div>
                       </div>
 
@@ -124,13 +144,33 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                         className="flex items-center justify-between pt-2 border-t border-neutral-100 text-[11px]"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="text-[10px] text-neutral-400 font-medium">Schimbă:</span>
-                        <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-neutral-400 font-medium">Mută:</span>
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          {col.status !== 'untested' && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateCampaignStatus(product.id, 'untested')}
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 transition-colors cursor-pointer"
+                              title="Trece la Netestat"
+                            >
+                              Netestat
+                            </button>
+                          )}
+                          {col.status !== 'testing' && (
+                            <button
+                              type="button"
+                              onClick={() => onUpdateCampaignStatus(product.id, 'testing')}
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
+                              title="Trece în testare"
+                            >
+                              Testare
+                            </button>
+                          )}
                           {col.status !== 'winner' && (
                             <button
                               type="button"
                               onClick={() => onUpdateCampaignStatus(product.id, 'winner')}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
                               title="Setează ca Winner"
                             >
                               Winner
@@ -140,7 +180,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             <button
                               type="button"
                               onClick={() => onUpdateCampaignStatus(product.id, 'promising')}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
                               title="Setează ca Promițător"
                             >
                               Promițător
@@ -150,20 +190,10 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                             <button
                               type="button"
                               onClick={() => onUpdateCampaignStatus(product.id, 'stopped')}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
                               title="Oprește campania"
                             >
                               Oprește
-                            </button>
-                          )}
-                          {col.status !== 'testing' && (
-                            <button
-                              type="button"
-                              onClick={() => onUpdateCampaignStatus(product.id, 'testing')}
-                              className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors cursor-pointer"
-                              title="Trece înapoi în testare"
-                            >
-                              Testare
                             </button>
                           )}
                         </div>

@@ -1,7 +1,8 @@
 import React from 'react';
-import { Product } from '../types/product';
-import { Bookmark, Edit3, Trash2, TrendingUp, Megaphone } from 'lucide-react';
+import { Product, CampaignStatus } from '../types/product';
+import { Bookmark, Edit3, Trash2, TrendingUp, Megaphone, Globe, ListChecks } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { safeFormatNumber, calculateChecklistStats } from '../utils/productNormalizer';
 
 interface ProductCardProps {
   product: Product;
@@ -18,16 +19,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onDelete,
   onToggleFavorite,
 }) => {
-  const campaign = product.campaign || {
-    platform: 'TikTok Ads',
-    status: 'testing',
+  if (!product || !product.id) return null;
+
+  const campaign = product?.campaign || {
+    platform: 'Facebook Ads',
+    status: 'testing' as CampaignStatus,
     adSpend: 0,
     revenue: 0,
     ordersCount: 0,
     roas: 0
   };
 
-  const statusInfo = CAMPAIGN_STATUS_LABELS[campaign.status] || CAMPAIGN_STATUS_LABELS.testing;
+  const statusInfo = (campaign?.status && CAMPAIGN_STATUS_LABELS[campaign.status])
+    ? CAMPAIGN_STATUS_LABELS[campaign.status]
+    : (CAMPAIGN_STATUS_LABELS?.testing || {
+        label: 'În testare',
+        color: 'text-amber-700',
+        bg: 'bg-amber-50',
+        border: 'border-amber-200',
+      });
+
+  const adSpend = Number(campaign?.adSpend) || 0;
+  const revenue = Number(campaign?.revenue) || 0;
+  const price = Number(product?.price) || 0;
+  const roas = Number(campaign?.roas) || (adSpend > 0 ? Number((revenue / adSpend).toFixed(2)) : 0);
+  const ordersCount = Number(campaign?.ordersCount) || 0;
+  const cpa = Number(campaign?.cpa) || 0;
+  const currency = product?.currency || 'RON';
+  const checklistStats = calculateChecklistStats(product?.checklist);
 
   return (
     <div
@@ -37,10 +56,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div>
         {/* Image Container with 4:3 ratio */}
         <div className="relative aspect-4/3 w-full bg-neutral-100 overflow-hidden border-b border-neutral-150">
-          {product.images?.[0] ? (
+          {product?.images?.[0] ? (
             <img
               src={product.images[0]}
-              alt={product.title}
+              alt={product.title || ''}
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover group-hover:scale-103 transition-transform duration-500 ease-out"
             />
@@ -53,7 +72,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* Platform & Campaign Status Badges */}
           <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 max-w-[80%]">
             <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-neutral-900/90 text-white backdrop-blur-md shadow-2xs">
-              {campaign.platform || 'Ads'}
+              {campaign?.platform || 'Facebook Ads'}
             </span>
 
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${statusInfo.bg} ${statusInfo.color} ${statusInfo.border}`}>
@@ -67,13 +86,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               type="button"
               onClick={(e) => onToggleFavorite(product.id, e)}
               className={`p-1.5 rounded-full backdrop-blur-md shadow-2xs transition-colors cursor-pointer ${
-                product.isFavorite
+                product?.isFavorite
                   ? 'bg-white text-amber-500 fill-amber-500'
                   : 'bg-white/90 text-neutral-600 hover:text-neutral-950'
               }`}
               title="Salvează la favorite"
             >
-              <Bookmark className="w-3.5 h-3.5" fill={product.isFavorite ? 'currentColor' : 'none'} />
+              <Bookmark className="w-3.5 h-3.5" fill={product?.isFavorite ? 'currentColor' : 'none'} />
             </button>
           </div>
         </div>
@@ -82,43 +101,73 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="p-4 space-y-2.5">
           {/* Metadata: Brand and Category */}
           <div className="text-[11px] text-neutral-500 font-medium truncate">
-            <span>{product.brand}</span>
+            <span>{product?.brand || 'General'}</span>
             <span className="mx-1.5 text-neutral-300">·</span>
-            <span className="text-neutral-700 font-semibold">{product.category}</span>
+            <span className="text-neutral-700 font-semibold">{product?.category || 'Altele'}</span>
           </div>
 
           {/* Title */}
           <h3 className="text-sm font-bold text-neutral-900 group-hover:text-[#0f4a3c] transition-colors line-clamp-2 leading-snug">
-            {product.title}
+            {product?.title || 'Fără titlu'}
           </h3>
+
+          {/* Site Destinație & Progres Checklist Lansare */}
+          {(product.targetSite || checklistStats.completed > 0) && (
+            <div className="flex items-center justify-between text-[11px] gap-2 py-1 px-2.5 bg-blue-50/70 rounded-xl border border-blue-200/60">
+              <span className="font-semibold text-blue-900 truncate flex items-center gap-1.5 min-w-0">
+                <Globe className="w-3 h-3 text-blue-600 shrink-0" />
+                <span className="truncate">{product.targetSite || 'Site planificat'}</span>
+              </span>
+              <span className="font-mono text-[10px] font-bold text-blue-700 shrink-0 flex items-center gap-1 bg-white/80 px-1.5 py-0.5 rounded-md border border-blue-200/50">
+                <ListChecks className="w-3 h-3 text-blue-600" />
+                <span>{checklistStats.completed}/{checklistStats.total}</span>
+              </span>
+            </div>
+          )}
 
           {/* Campaign Performance Box */}
           <div className="bg-[#f8faf9] border border-neutral-200/60 rounded-xl p-2.5 space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-neutral-500 text-[11px]">Performanță Ads:</span>
-              <span className={`font-mono font-bold text-xs ${
-                campaign.roas && campaign.roas >= 2.5
-                  ? 'text-emerald-700'
-                  : campaign.roas && campaign.roas >= 1.5
-                  ? 'text-[#0f4a3c]'
-                  : 'text-neutral-700'
-              }`}>
-                {campaign.roas && campaign.roas > 0 ? `${campaign.roas.toFixed(2)}x ROAS` : 'ROAS: —'}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-600 tabular-nums">
-              <span>Spend: <strong>{campaign.adSpend.toLocaleString('ro-RO')} {product.currency}</strong></span>
-              <span>Venit: <strong className="text-neutral-900">{campaign.revenue.toLocaleString('ro-RO')} {product.currency}</strong></span>
-            </div>
-
-            {campaign.ordersCount > 0 && (
-              <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-100">
-                <span>Comenzi: <strong className="text-neutral-800">{campaign.ordersCount}</strong></span>
-                {campaign.cpa && campaign.cpa > 0 && (
-                  <span>CPA: <strong className="text-neutral-800">{campaign.cpa} {product.currency}</strong></span>
-                )}
+            {campaign?.status === 'untested' && adSpend === 0 ? (
+              <div className="py-0.5 space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-500 text-[11px]">Performanță Ads:</span>
+                  <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md text-[10px]">
+                    Netestat încă
+                  </span>
+                </div>
+                <p className="text-[10px] text-neutral-400">
+                  Gata pentru testare pe Facebook / TikTok
+                </p>
               </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-500 text-[11px]">Performanță Ads:</span>
+                  <span className={`font-mono font-bold text-xs ${
+                    roas >= 2.5
+                      ? 'text-emerald-700'
+                      : roas >= 1.5
+                      ? 'text-[#0f4a3c]'
+                      : 'text-neutral-700'
+                  }`}>
+                    {roas > 0 ? `${roas.toFixed(2)}x ROAS` : 'ROAS: —'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] font-mono text-neutral-600 tabular-nums">
+                  <span>Spend: <strong>{safeFormatNumber(adSpend)} {currency}</strong></span>
+                  <span>Venit: <strong className="text-neutral-900">{safeFormatNumber(revenue)} {currency}</strong></span>
+                </div>
+
+                {ordersCount > 0 && (
+                  <div className="text-[10px] text-neutral-400 font-mono flex items-center justify-between pt-1 border-t border-neutral-100">
+                    <span>Comenzi: <strong className="text-neutral-800">{ordersCount}</strong></span>
+                    {cpa > 0 && (
+                      <span>CPA: <strong className="text-neutral-800">{safeFormatNumber(cpa)} {currency}</strong></span>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -128,7 +177,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       <div className="px-4 py-3 border-t border-neutral-100 flex items-center justify-between bg-neutral-50/50">
         <div>
           <span className="text-sm font-mono font-bold text-neutral-900 tabular-nums">
-            {product.price.toLocaleString('ro-RO')} {product.currency}
+            {safeFormatNumber(price)} {currency}
           </span>
           <span className="text-[10px] text-neutral-400 block -mt-0.5">preț vânzare</span>
         </div>
@@ -155,3 +204,4 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     </div>
   );
 };
+

@@ -12,6 +12,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { safeFormatNumber } from '../utils/productNormalizer';
 
 interface CampaignsViewProps {
   products: Product[];
@@ -28,25 +29,27 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'all'>('all');
 
   // Calcule totale
-  const totalSpend = products.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-  const totalRevenue = products.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
-  const totalOrders = products.reduce((sum, p) => sum + (p.campaign?.ordersCount || 0), 0);
+  const totalSpend = products.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+  const totalRevenue = products.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
+  const totalOrders = products.reduce((sum, p) => sum + (Number(p?.campaign?.ordersCount) || 0), 0);
   const globalRoas = totalSpend > 0 ? (totalRevenue / totalSpend).toFixed(2) : '0';
   const totalProfit = totalRevenue - totalSpend;
-  const winnersCount = products.filter((p) => p.campaign?.status === 'winner').length;
+  const winnersCount = products.filter((p) => p?.campaign?.status === 'winner').length;
 
   // Filtrare produse
   const filteredProducts = products.filter((p) => {
-    const c = p.campaign;
+    const c = p?.campaign;
     if (!c) return false;
 
+    const plat = (c.platform || '').toLowerCase();
+
     if (platformFilter !== 'all') {
-      if (platformFilter === 'tiktok' && !c.platform.toLowerCase().includes('tiktok')) return false;
-      if (platformFilter === 'facebook' && !c.platform.toLowerCase().includes('facebook') && !c.platform.toLowerCase().includes('meta')) return false;
-      if (platformFilter === 'google' && !c.platform.toLowerCase().includes('google')) return false;
+      if (platformFilter === 'tiktok' && !plat.includes('tiktok')) return false;
+      if (platformFilter === 'facebook' && !plat.includes('facebook') && !plat.includes('meta')) return false;
+      if (platformFilter === 'google' && !plat.includes('google')) return false;
     }
 
-    if (statusFilter !== 'all' && c.status !== statusFilter) {
+    if (statusFilter !== 'all' && (c.status || 'testing') !== statusFilter) {
       return false;
     }
 
@@ -84,7 +87,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
             Buget Total Cheltuit
           </span>
           <span className="font-mono font-bold text-neutral-900 text-lg sm:text-xl tabular-nums mt-1 block">
-            {totalSpend.toLocaleString('ro-RO')} RON
+            {safeFormatNumber(totalSpend)} RON
           </span>
         </div>
 
@@ -93,7 +96,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
             Venit Total Generat
           </span>
           <span className="font-mono font-bold text-neutral-900 text-lg sm:text-xl tabular-nums mt-1 block">
-            {totalRevenue.toLocaleString('ro-RO')} RON
+            {safeFormatNumber(totalRevenue)} RON
           </span>
         </div>
 
@@ -113,7 +116,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
           <span className={`font-mono font-bold text-lg sm:text-xl tabular-nums mt-1 block ${
             totalProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'
           }`}>
-            {totalProfit >= 0 ? `+${totalProfit.toLocaleString('ro-RO')}` : totalProfit.toLocaleString('ro-RO')} RON
+            {totalProfit >= 0 ? `+${safeFormatNumber(totalProfit)}` : safeFormatNumber(totalProfit)} RON
           </span>
         </div>
 
@@ -160,6 +163,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
             className="bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-neutral-700 font-semibold focus:outline-none focus:border-[#0f4a3c] cursor-pointer"
           >
             <option value="all">Toate stările</option>
+            <option value="untested">Netestat</option>
             <option value="winner">Winner (Scalat)</option>
             <option value="testing">În testare</option>
             <option value="promising">Promițător (Break-even)</option>
@@ -247,7 +251,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                         {product.title}
                       </h3>
                       <div className="text-xs text-neutral-400 mt-0.5">
-                        Brand: <span className="text-neutral-700 font-medium">{product.brand}</span> · Preț: <span className="text-neutral-800 font-mono font-semibold">{product.price} {product.currency}</span>
+                        Brand: <span className="text-neutral-700 font-medium">{product.brand}</span> · Preț: <span className="text-neutral-800 font-mono font-semibold">{safeFormatNumber(product.price)} {product.currency || 'RON'}</span>
                       </div>
                     </div>
                   </div>
@@ -257,35 +261,35 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                     <div>
                       <span className="text-[10px] uppercase font-bold text-neutral-400 block">Buget Cheltuit</span>
                       <span className="font-mono font-bold text-neutral-900 tabular-nums">
-                        {c.adSpend.toLocaleString('ro-RO')} {product.currency}
+                        {safeFormatNumber(c?.adSpend)} {product?.currency || 'RON'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] uppercase font-bold text-neutral-400 block">Venit Generat</span>
                       <span className="font-mono font-bold text-neutral-900 tabular-nums">
-                        {c.revenue.toLocaleString('ro-RO')} {product.currency}
+                        {safeFormatNumber(c?.revenue)} {product?.currency || 'RON'}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] uppercase font-bold text-neutral-400 block">ROAS</span>
                       <span className="font-mono font-bold text-[#0f4a3c] tabular-nums">
-                        {c.roas && c.roas > 0 ? `${c.roas.toFixed(2)}x` : '—'}
+                        {Number(c?.roas) > 0 ? `${Number(c.roas).toFixed(2)}x` : '—'}
                       </span>
                     </div>
 
                     <div className="pt-2 border-t border-neutral-100">
                       <span className="text-[10px] uppercase font-bold text-neutral-400 block">Comenzi</span>
                       <span className="font-mono font-semibold text-neutral-800 tabular-nums">
-                        {c.ordersCount} comenzi
+                        {Number(c?.ordersCount) || 0} comenzi
                       </span>
                     </div>
 
                     <div className="pt-2 border-t border-neutral-100">
                       <span className="text-[10px] uppercase font-bold text-neutral-400 block">CPA</span>
                       <span className="font-mono font-semibold text-neutral-800 tabular-nums">
-                        {c.cpa && c.cpa > 0 ? `${c.cpa} ${product.currency}` : '—'}
+                        {Number(c?.cpa) > 0 ? `${safeFormatNumber(c.cpa)} ${product?.currency || 'RON'}` : '—'}
                       </span>
                     </div>
 
@@ -294,7 +298,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                       <span className={`font-mono font-bold tabular-nums ${
                         net >= 0 ? 'text-emerald-700' : 'text-rose-600'
                       }`}>
-                        {net >= 0 ? `+${net.toLocaleString('ro-RO')}` : net.toLocaleString('ro-RO')} {product.currency}
+                        {net >= 0 ? `+${safeFormatNumber(net)}` : safeFormatNumber(net)} {product?.currency || 'RON'}
                       </span>
                     </div>
                   </div>

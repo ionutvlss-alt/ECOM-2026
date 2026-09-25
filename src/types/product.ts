@@ -1,6 +1,6 @@
 export type AdPlatform = 'facebook' | 'tiktok' | 'google' | 'instagram' | 'altele' | string;
 
-export type CampaignStatus = 'testing' | 'winner' | 'promising' | 'stopped';
+export type CampaignStatus = 'untested' | 'testing' | 'winner' | 'promising' | 'stopped';
 
 export interface CampaignResults {
   platform: AdPlatform; // ex: "Facebook Ads", "TikTok Ads", "Google Ads"
@@ -25,6 +25,17 @@ export interface CategoryItem {
   createdAt: string;
 }
 
+export interface ProductChecklist {
+  supplierFound: boolean; // Furnizor găsit & confirmat
+  pageCreated: boolean; // Pagină produs / Landing page creată
+  adsPrepared: boolean; // Reclame & Creativuri pregătite (video/foto/texte)
+  priceCalculated: boolean; // Preț de vânzare & marjă de profit calculate
+  trackingReady: boolean; // Pixel & Tracking configurate
+  liveOnSite: boolean; // Produs publicat & activ pe site
+}
+
+export type ListingStatus = 'planned' | 'in_progress' | 'live';
+
 export interface Product {
   id: string;
   title: string;
@@ -37,6 +48,14 @@ export interface Product {
   exampleSiteUrl?: string; // Exemplu site furnizor / concurent / landing page
   images: string[];
   createdAt: string;
+
+  // Site destinație (Pe ce site urmează să fie adăugat)
+  targetSite?: string; // Nume magazin / domeniu destinație (ex: MagazinulMeu.ro, Shopify Store)
+  targetSiteUrl?: string; // Link direct sau URL magazin destinație
+  listingStatus?: ListingStatus; // 'planned' (În planificare) | 'in_progress' (În lucru) | 'live' (Publicat / Live)
+
+  // Checklist de pregătire & lansare produs
+  checklist?: ProductChecklist;
   
   // Platformă & Rezultate Campanie Ads (Facebook, TikTok, etc.)
   campaign: CampaignResults;

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Product, CampaignResults, CampaignStatus } from '../types/product';
-import { AD_PLATFORMS, CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import React, { useState } from 'react';
+import { Product, CampaignResults, CampaignStatus, ProductChecklist, ListingStatus } from '../types/product';
+import { Supplier } from '../types/supplier';
+import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { CHECKLIST_ITEMS_CONFIG, calculateChecklistStats } from '../utils/productNormalizer';
 import {
   X,
   Upload,
@@ -10,17 +12,26 @@ import {
   TrendingUp,
   DollarSign,
   ShoppingCart,
-  Link,
+  Link as LinkIcon,
   Layers,
   Sparkles,
   Info,
-  Loader2
+  Loader2,
+  Building2,
+  ExternalLink,
+  Globe,
+  ListChecks,
+  Check,
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 import { compressImageFile, compressBase64Image } from '../utils/imageCompressor';
 
 interface ProductFormModalProps {
   initialProduct?: Product | null;
   categories: string[];
+  suppliers?: Supplier[];
+  existingTargetSites?: string[];
   onSave: (product: Product, newCategoryCreated?: string) => void;
   onClose: () => void;
 }
@@ -28,6 +39,8 @@ interface ProductFormModalProps {
 export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   initialProduct,
   categories,
+  suppliers = [],
+  existingTargetSites = [],
   onSave,
   onClose,
 }) => {
@@ -48,17 +61,38 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [storeUrl, setStoreUrl] = useState(initialProduct?.storeUrl || '');
   const [exampleSiteUrl, setExampleSiteUrl] = useState(initialProduct?.exampleSiteUrl || '');
 
+  // Secțiunea Nouă: Site Destinație & Checklist
+  const [targetSite, setTargetSite] = useState(initialProduct?.targetSite || '');
+  const [targetSiteUrl, setTargetSiteUrl] = useState(initialProduct?.targetSiteUrl || '');
+  const [listingStatus, setListingStatus] = useState<ListingStatus>(
+    initialProduct?.listingStatus || 'planned'
+  );
+  const [checklist, setChecklist] = useState<ProductChecklist>({
+    supplierFound: initialProduct?.checklist?.supplierFound ?? false,
+    pageCreated: initialProduct?.checklist?.pageCreated ?? false,
+    adsPrepared: initialProduct?.checklist?.adsPrepared ?? false,
+    priceCalculated: initialProduct?.checklist?.priceCalculated ?? false,
+    trackingReady: initialProduct?.checklist?.trackingReady ?? false,
+    liveOnSite: initialProduct?.checklist?.liveOnSite ?? false,
+  });
+
+  const toggleChecklistItem = (key: keyof ProductChecklist) => {
+    setChecklist((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const checklistStats = calculateChecklistStats(checklist);
+
   // Imagini
   const [images, setImages] = useState<string[]>(initialProduct?.images || []);
   const [imageUrlInput, setImageUrlInput] = useState('');
 
-  // Campanie & Rezultate Ads (Facebook / TikTok etc.)
+  // Campanie & Rezultate Ads (Facebook / TikTok etc.) - Plasată ULTIMA
   const [platform, setPlatform] = useState<string>(
     initialProduct?.campaign?.platform || 'TikTok Ads'
   );
   const [customPlatform, setCustomPlatform] = useState('');
   const [campaignStatus, setCampaignStatus] = useState<CampaignStatus>(
-    initialProduct?.campaign?.status || 'testing'
+    initialProduct?.campaign?.status || 'untested'
   );
   const [adSpend, setAdSpend] = useState<number>(initialProduct?.campaign?.adSpend || 0);
   const [revenue, setRevenue] = useState<number>(initialProduct?.campaign?.revenue || 0);
@@ -83,7 +117,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   const [isCompressingImages, setIsCompressingImages] = useState(false);
 
-  // Încărcare imagini locale cu optimizare și compresie automată (previne depășirea spațiului)
+  // Încărcare imagini locale cu optimizare și compresie automată
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -140,6 +174,16 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   };
   const handleRemoveCon = (index: number) => setCons((prev) => prev.filter((_, i) => i !== index));
 
+  const handleSelectSupplier = (s: Supplier) => {
+    setStoreName(s.name);
+    if (s.link && !storeUrl) {
+      setStoreUrl(s.link);
+    }
+    if (!brand) {
+      setBrand(s.name);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -182,6 +226,14 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       exampleSiteUrl: exampleSiteUrl.trim() || undefined,
       images: images.length > 0 ? images : ['https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80'],
       createdAt: initialProduct?.createdAt || new Date().toISOString().slice(0, 10),
+      
+      // Date Site Destinație & Checklist
+      targetSite: targetSite.trim() || undefined,
+      targetSiteUrl: targetSiteUrl.trim() || undefined,
+      listingStatus: listingStatus,
+      checklist: checklist,
+
+      // Partea de ADS (rămâne ultima)
       campaign: campaignResults,
       detailedNotes: detailedNotes.trim() || undefined,
       pros: pros.filter((p) => p.trim().length > 0),
@@ -205,10 +257,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-150 bg-white/95 sticky top-0 z-20 backdrop-blur-md">
           <div>
             <h2 className="text-base sm:text-lg font-bold text-neutral-900">
-              {isEditing ? 'Editează Produsul & Campania' : 'Adaugă Produs & Rezultate Campanie'}
+              {isEditing ? 'Editează Produsul & Planificarea' : 'Adaugă Produs & Planificare Lansare'}
             </h2>
             <p className="text-xs text-neutral-500">
-              Înregistrează produsul, platforma pe care ai testat (TikTok/Facebook) și metricele campaniei.
+              Date produs, furnizor, site destinație, checklist de pregătire și rezultate campanie Ads.
             </p>
           </div>
           <button
@@ -222,26 +274,526 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* SECȚIUNEA 1: Platformă Ads & Rezultate Campanie (Facebook / TikTok) */}
-          <div className="bg-[#f5fbf7] border border-emerald-200/80 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          {/* SECȚIUNEA 1: Informații de bază despre Produs & Furnizor Sursă */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-1 border-b border-neutral-100">
+              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#0f4a3c]" />
+                <span>1. Date Generale Produs & Furnizor Sursă</span>
+              </h3>
+            </div>
+
+            {/* Titlu & Brand */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Titlu produs *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="ex: Husă Magnetică cu Încărcare Wireless 3-in-1"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Brand / Etichetă
+                </label>
+                <input
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="ex: Brand Personal sau General"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Furnizor / Magazin Sursă */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-neutral-700">
+                  Furnizor Sursă / Proveniență
+                </label>
+                {suppliers.length > 0 && (
+                  <span className="text-[11px] text-neutral-400">
+                    Alege rapid din furnizorii salvați:
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={storeName}
+                  onChange={(e) => setStoreName(e.target.value)}
+                  placeholder="ex: AliExpress, Shenzhen Factory, 1688, Taobao..."
+                  className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+                {suppliers.length > 0 && (
+                  <select
+                    onChange={(e) => {
+                      const found = suppliers.find((s) => s.id === e.target.value);
+                      if (found) handleSelectSupplier(found);
+                    }}
+                    defaultValue=""
+                    className="bg-neutral-100 border border-neutral-200 rounded-xl px-3 py-2 text-xs text-neutral-700 font-medium cursor-pointer"
+                  >
+                    <option value="" disabled>Alege furnizor din listă...</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.platform})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Categorie: Dropdown + Adăugare manuală directă */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-neutral-700">
+                  Categorie produs *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsTypingCustomCategory(!isTypingCustomCategory)}
+                  className="text-[11px] text-[#0f4a3c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>{isTypingCustomCategory ? 'Alege din lista existentă' : 'Scrie o categorie nouă'}</span>
+                </button>
+              </div>
+
+              {!isTypingCustomCategory ? (
+                <div className="flex gap-2">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white cursor-pointer"
+                  >
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  autoFocus
+                  value={customCategoryInput}
+                  onChange={(e) => setCustomCategoryInput(e.target.value)}
+                  placeholder="Scrie noua categorie (ex: Articole Bebelusi, Scule Auto)..."
+                  className="w-full bg-white border border-[#0f4a3c] rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none"
+                />
+              )}
+            </div>
+
+            {/* Preț & Monedă */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Preț vânzare planificat / recomandat *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={price || ''}
+                  onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
+                  placeholder="ex: 149"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Monedă
+                </label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as any)}
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs font-mono text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white cursor-pointer"
+                >
+                  <option value="RON">RON</option>
+                  <option value="EUR">EUR</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Link-uri: Furnizor Sursă & Concurență */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Link Furnizor (AliExpress/1688) / Mostră
+                </label>
+                <input
+                  type="url"
+                  value={storeUrl}
+                  onChange={(e) => setStoreUrl(e.target.value)}
+                  placeholder="https://aliexpress.com/... sau link furnizor"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Link Exemplu / Magazin Concurent / Landing Page
+                </label>
+                <input
+                  type="url"
+                  value={exampleSiteUrl}
+                  onChange={(e) => setExampleSiteUrl(e.target.value)}
+                  placeholder="https://exemplu-site.com/landing-page"
+                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECȚIUNEA 2: Site Destinație & Checklist Pregătire Lansare (Cerută de utilizator!) */}
+          <div className="bg-[#f8fbfd] border border-blue-200 rounded-2xl p-5 space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-blue-100">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-[#0f4a3c] text-white flex items-center justify-center shadow-2xs">
-                  <Megaphone className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <Globe className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-neutral-900">
-                    Platformă de Testare & Rezultate Campanie
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <span>2. Site Destinație & Checklist Pregătire Lansare</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                      {checklistStats.completed}/{checklistStats.total} ({checklistStats.percentage}%)
+                    </span>
                   </h3>
                   <p className="text-[11px] text-neutral-500">
-                    Alege platforma (TikTok Ads, Facebook Ads etc.) și introdu cifrele din Ads Manager.
+                    Pe ce magazin/site adaugi produsul și care sunt pașii finalizați înainte de reclame.
                   </p>
                 </div>
               </div>
 
-              {/* Status Campanie Badge */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold text-neutral-500 hidden sm:inline">Status:</span>
+              {/* Status Listare */}
+              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                <span className="text-[11px] font-semibold text-neutral-600">Stadiu:</span>
+                <select
+                  value={listingStatus}
+                  onChange={(e) => setListingStatus(e.target.value as ListingStatus)}
+                  className="text-xs font-bold rounded-xl px-3 py-1.5 border border-blue-200 bg-white text-blue-900 cursor-pointer focus:outline-none shadow-2xs"
+                >
+                  <option value="planned">În planificare</option>
+                  <option value="in_progress">În pregătire</option>
+                  <option value="live">Publicat & Activ pe site</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Unde urmează să fie adăugat produsul */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Pe ce site urmează să fie adăugat? (Nume magazin / Brand)
+                </label>
+                <div className="relative">
+                  <Globe className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="text"
+                    value={targetSite}
+                    onChange={(e) => setTargetSite(e.target.value)}
+                    placeholder="ex: MagazinulMeu.ro, TrendZone.ro, Brand Shopify..."
+                    className="w-full bg-white border border-neutral-200 rounded-xl pl-9 pr-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+                {existingTargetSites.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                    <span className="text-[10px] text-neutral-400">Sugestii:</span>
+                    {existingTargetSites.slice(0, 4).map((site) => (
+                      <button
+                        key={site}
+                        type="button"
+                        onClick={() => setTargetSite(site)}
+                        className="text-[10px] px-2 py-0.5 rounded-md bg-white border border-neutral-200 hover:border-blue-400 text-neutral-700 transition-colors cursor-pointer"
+                      >
+                        {site}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Link către produs pe site (sau link magazin destinație)
+                </label>
+                <div className="relative">
+                  <LinkIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                  <input
+                    type="url"
+                    value={targetSiteUrl}
+                    onChange={(e) => setTargetSiteUrl(e.target.value)}
+                    placeholder="https://magazinulmeu.ro/products/produs-nou"
+                    className="w-full bg-white border border-neutral-200 rounded-xl pl-9 pr-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-blue-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Checklist Pregătire Lansare */}
+            <div className="space-y-2 pt-2 border-t border-blue-100">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-neutral-700 flex items-center gap-1.5">
+                  <ListChecks className="w-4 h-4 text-blue-600" />
+                  <span>Checklist etape înainte de lansare:</span>
+                </span>
+                <span className="font-mono font-bold text-blue-800 text-xs">
+                  {checklistStats.percentage}% completat
+                </span>
+              </div>
+
+              {/* Bară de Progres dinamică */}
+              <div className="w-full h-2 bg-neutral-200/80 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    checklistStats.isReady
+                      ? 'bg-emerald-600'
+                      : checklistStats.percentage >= 50
+                      ? 'bg-blue-600'
+                      : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${checklistStats.percentage}%` }}
+                />
+              </div>
+
+              {/* Opțiuni bifabile din checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {CHECKLIST_ITEMS_CONFIG.map((item) => {
+                  const isChecked = Boolean(checklist[item.key]);
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => toggleChecklistItem(item.key)}
+                      className={`flex items-start gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        isChecked
+                          ? 'bg-white border-blue-400 shadow-2xs ring-1 ring-blue-400/20'
+                          : 'bg-white/80 border-neutral-200 hover:border-neutral-300'
+                      }`}
+                    >
+                      <div className="pt-0.5 shrink-0">
+                        {isChecked ? (
+                          <div className="w-4 h-4 rounded-md bg-blue-600 text-white flex items-center justify-center">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="w-4 h-4 rounded-md border-2 border-neutral-300 bg-white" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <span className={`text-xs font-bold block ${isChecked ? 'text-neutral-900 line-through opacity-80' : 'text-neutral-900'}`}>
+                          {item.label}
+                        </span>
+                        <span className="text-[11px] text-neutral-500 block leading-tight mt-0.5">
+                          {item.description}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* SECȚIUNEA 3: Imagini Produs */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between pb-1 border-b border-neutral-100">
+              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#0f4a3c]" />
+                <span>3. Galerie Imagini Produs</span>
+              </h3>
+            </div>
+
+            {/* Adăugare link URL sau fișier */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="url"
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                placeholder="Inserează URL imagine (ex: https://...)"
+                className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleAddImageUrl}
+                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer shrink-0"
+              >
+                Adaugă URL
+              </button>
+              <label className="px-4 py-2 bg-[#eaf3ee] hover:bg-[#d8ece1] text-[#0f4a3c] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shrink-0">
+                {isCompressingImages ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Se optimizează...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Încarcă fișier</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  disabled={isCompressingImages}
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+
+            {/* Thumbnail-uri */}
+            {images.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200 group">
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(idx)}
+                      className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
+                      title="Șterge imagine"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* SECȚIUNEA 4: Puncte Tari, Puncte Slabe & Note */}
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-between pb-1 border-b border-neutral-100">
+              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#0f4a3c]" />
+                <span>4. Analiză Produs (Pros & Cons + Notițe)</span>
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Pros */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-emerald-800">
+                  <span>Puncte Tari (Ce a mers bine)</span>
+                  <button
+                    type="button"
+                    onClick={handleAddPro}
+                    className="text-[#0f4a3c] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" /> Adaugă
+                  </button>
+                </div>
+                {pros.map((p, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={p}
+                      onChange={(e) => handleUpdatePro(i, e.target.value)}
+                      placeholder="ex: Rata mare de conversie la public tânăr"
+                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                    />
+                    {pros.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePro(i)}
+                        className="text-neutral-400 hover:text-rose-500 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Cons */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-rose-800">
+                  <span>Puncte Slabe (Probleme / Retururi)</span>
+                  <button
+                    type="button"
+                    onClick={handleAddCon}
+                    className="text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" /> Adaugă
+                  </button>
+                </div>
+                {cons.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={c}
+                      onChange={(e) => handleUpdateCon(i, e.target.value)}
+                      placeholder="ex: Timp mare de livrare de la furnizor"
+                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                    />
+                    {cons.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCon(i)}
+                        className="text-neutral-400 hover:text-rose-500 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Note generale */}
+            <div>
+              <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                Notițe adiționale despre produs
+              </label>
+              <textarea
+                rows={2}
+                value={detailedNotes}
+                onChange={(e) => setDetailedNotes(e.target.value)}
+                placeholder="Observații despre stoc, marjă de profit, furnizori alternativi etc."
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] resize-none"
+              />
+            </div>
+          </div>
+
+          {/* SECȚIUNEA 5 (ULTIMA, SUB TOATE DATELE PRODUSULUI): Platformă Ads & Rezultate Campanie */}
+          <div className="bg-[#f5fbf7] border-2 border-emerald-300/80 rounded-2xl p-5 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#0f4a3c] text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <Megaphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <span>5. Campanie ADS & Rezultate Testare</span>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                      Ads Section
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Alege statusul (inclusiv NETESTAT) și datele de performanță din Ads Manager (Facebook / TikTok).
+                  </p>
+                </div>
+              </div>
+
+              {/* Status Campanie Badge cu NETESTAT inclus */}
+              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                <span className="text-[11px] font-semibold text-neutral-600">Status:</span>
                 <select
                   value={campaignStatus}
                   onChange={(e) => setCampaignStatus(e.target.value as CampaignStatus)}
@@ -251,6 +803,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                     CAMPAIGN_STATUS_LABELS[campaignStatus]?.border || 'border-neutral-300'
                   }`}
                 >
+                  <option value="untested">Netestat</option>
                   <option value="testing">În testare</option>
                   <option value="winner">Winner (Scalat)</option>
                   <option value="promising">Promițător (Break-even)</option>
@@ -431,303 +984,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </div>
           </div>
 
-          {/* SECȚIUNEA 2: Informații de bază despre Produs & Categorie */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-              Date Generale Produs
-            </h3>
-
-            {/* Titlu & Brand */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Titlu produs *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="ex: Husă Magnetică cu Încărcare Wireless 3-in-1"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Brand / Furnizor
-                </label>
-                <input
-                  type="text"
-                  value={brand}
-                  onChange={(e) => setBrand(e.target.value)}
-                  placeholder="ex: Brand Personal sau Furnizor"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-                />
-              </div>
-            </div>
-
-            {/* Categorie: Dropdown + Adăugare manuală directă */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold text-neutral-700">
-                  Categorie produs *
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsTypingCustomCategory(!isTypingCustomCategory)}
-                  className="text-[11px] text-[#0f4a3c] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>{isTypingCustomCategory ? 'Alege din lista existentă' : 'Scrie o categorie nouă'}</span>
-                </button>
-              </div>
-
-              {!isTypingCustomCategory ? (
-                <div className="flex gap-2">
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white cursor-pointer"
-                  >
-                    {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  autoFocus
-                  value={customCategoryInput}
-                  onChange={(e) => setCustomCategoryInput(e.target.value)}
-                  placeholder="Scrie noua categorie (ex: Articole Bebelusi, Scule Auto)..."
-                  className="w-full bg-white border border-[#0f4a3c] rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none"
-                />
-              )}
-            </div>
-
-            {/* Preț & Monedă */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Preț vânzare produs *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={price || ''}
-                  onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-                  placeholder="ex: 149"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs font-mono font-bold text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Monedă
-                </label>
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value as any)}
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs font-mono text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white cursor-pointer"
-                >
-                  <option value="RON">RON</option>
-                  <option value="EUR">EUR</option>
-                  <option value="USD">USD</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Link-uri: Magazin & Concurență */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Link Magazin propriu / Furnizor
-                </label>
-                <input
-                  type="url"
-                  value={storeUrl}
-                  onChange={(e) => setStoreUrl(e.target.value)}
-                  placeholder="https://magazin.ro/produs sau link furnizor"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Link Exemplu / Magazin Concurent / Landing Page
-                </label>
-                <input
-                  type="url"
-                  value={exampleSiteUrl}
-                  onChange={(e) => setExampleSiteUrl(e.target.value)}
-                  placeholder="https://exemplu-site.com/landing-page"
-                  className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* SECȚIUNEA 3: Imagini Produs */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-              Galerie Imagini Produs
-            </h3>
-
-            {/* Adăugare link URL sau fișier */}
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="url"
-                value={imageUrlInput}
-                onChange={(e) => setImageUrlInput(e.target.value)}
-                placeholder="Inserează URL imagine (ex: https://...)"
-                className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] focus:bg-white"
-              />
-              <button
-                type="button"
-                onClick={handleAddImageUrl}
-                className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer shrink-0"
-              >
-                Adaugă URL
-              </button>
-              <label className="px-4 py-2 bg-[#eaf3ee] hover:bg-[#d8ece1] text-[#0f4a3c] text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-colors shrink-0">
-                {isCompressingImages ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Se optimizează...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Încarcă fișier</span>
-                  </>
-                )}
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  disabled={isCompressingImages}
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </div>
-
-            {/* Thumbnail-uri */}
-            {images.length > 0 && (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2">
-                {images.map((img, idx) => (
-                  <div key={idx} className="relative aspect-square rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200 group">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveImage(idx)}
-                      className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs"
-                      title="Șterge imagine"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* SECȚIUNEA 4: Puncte Tari, Puncte Slabe & Note */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-              Analiză Produs (Pros & Cons)
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Pros */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-emerald-800">
-                  <span>Puncte Tari (Ce a mers bine)</span>
-                  <button
-                    type="button"
-                    onClick={handleAddPro}
-                    className="text-[#0f4a3c] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Adaugă
-                  </button>
-                </div>
-                {pros.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={p}
-                      onChange={(e) => handleUpdatePro(i, e.target.value)}
-                      placeholder="ex: Rata mare de conversie la public tânăr"
-                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
-                    />
-                    {pros.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePro(i)}
-                        className="text-neutral-400 hover:text-rose-500 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Cons */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-semibold text-rose-800">
-                  <span>Puncte Slabe (Probleme / Retururi)</span>
-                  <button
-                    type="button"
-                    onClick={handleAddCon}
-                    className="text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Adaugă
-                  </button>
-                </div>
-                {cons.map((c, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={c}
-                      onChange={(e) => handleUpdateCon(i, e.target.value)}
-                      placeholder="ex: Timp mare de livrare de la furnizor"
-                      className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
-                    />
-                    {cons.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCon(i)}
-                        className="text-neutral-400 hover:text-rose-500 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Note generale */}
-            <div>
-              <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                Notițe adiționale despre produs
-              </label>
-              <textarea
-                rows={2}
-                value={detailedNotes}
-                onChange={(e) => setDetailedNotes(e.target.value)}
-                placeholder="Observații despre stoc, marjă de profit, furnizori alternativi etc."
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] resize-none"
-              />
-            </div>
-          </div>
-
           {/* Footer Submit */}
           <div className="pt-4 border-t border-neutral-150 flex items-center justify-end gap-3 sticky bottom-0 bg-white/95 pb-1">
             <button
@@ -741,7 +997,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               type="submit"
               className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#0f4a3c] hover:bg-[#0c3c31] text-white shadow-xs transition-colors cursor-pointer"
             >
-              {isEditing ? 'Salvează modificările' : 'Adaugă produsul & campania'}
+              {isEditing ? 'Salvează modificările' : 'Adaugă produsul'}
             </button>
           </div>
         </form>

@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getFirebaseAuth, getFirebaseFirestore, googleProvider } from './firebaseConfig';
 import { Product } from '../types/product';
 import { storageService } from './storageService';
+import { normalizeProduct } from '../utils/productNormalizer';
 
 export interface AuthUser {
   uid: string;
@@ -133,9 +134,25 @@ export const authService = {
     authService.setCurrentUser(null);
   },
 
+  // Curățare date pentru salvare sigură în Cloud (previne depășirea limitelor de payload)
+  sanitizeForCloud: (products: Product[]): Product[] => {
+    return (products || []).map((p) => {
+      const clean = normalizeProduct(p);
+      // Păstrăm URL-urile sau limităm string-urile base64 supradimensionate
+      const cleanImages = (clean.images || []).map((img) => {
+        if (typeof img === 'string' && img.startsWith('data:image') && img.length > 25000) {
+          // Trunchiază sau păstrează până la dimensiune acceptabilă
+          return img.slice(0, 25000);
+        }
+        return img;
+      });
+      return { ...clean, images: cleanImages };
+    });
+  },
+
   // Asociază produsele existente cu contul și le sincronizează în Cloud
   claimAndSyncProducts: async (user: AuthUser): Promise<Product[]> => {
-    const localProducts = storageService.getProducts();
+    const localProducts = storageService.getProducts() || [];
 
     // 1. Încercăm să citim produsele salvate anterior în Cloud
     let cloudProducts: Product[] | null = null;
@@ -145,38 +162,76 @@ export const authService = {
       console.warn('Nu s-a putut citi din Cloud:', err);
     }
 
-    // 2. Logica de unire inteligentă (Merge):
-    // Dacă pe acest dispozitiv avem deja produse (ex. pe PC), iar în cloud nu sunt sau sunt mai puține:
-    if (localProducts.length > 0 && (!cloudProducts || cloudProducts.length === 0)) {
-      // Încărcăm produsele locale în Cloud pentru acest cont!
-      await authService.syncProductsToCloud(user, localProducts);
-      return localProducts;
+    // 2. Logica de unire inteligentă (Merge Bidirecțional):
+    // Unim toate produsele locale de pe telefon/PC cu cele din Cloud
+    const mergedMap = new Map<string, Product>();
+
+    // Întâi adăugăm produsele din Cloud
+    if (cloudProducts && Array.isArray(cloudProducts)) {
+      cloudProducts.forEach((p) => {
+        if (p && p.id) mergedMap.set(p.id, normalizeProduct(p));
+      });
     }
 
-    if (cloudProducts && cloudProducts.length > 0) {
-      // Dacă în Cloud există mai multe produse (ex. când intrăm de pe telefon):
-      const mergedMap = new Map<string, Product>();
-      cloudProducts.forEach((p) => mergedMap.set(p.id, p));
-      localProducts.forEach((p) => {
-        if (!mergedMap.has(p.id)) mergedMap.set(p.id, p);
-      });
-
-      const finalProducts = Array.from(mergedMap.values());
-      storageService.saveProducts(finalProducts);
-      // Actualizăm și în cloud dacă am adăugat și din cele locale
-      if (finalProducts.length > cloudProducts.length) {
-        await authService.syncProductsToCloud(user, finalProducts);
+    // Apoi adăugăm produsele locale (dacă existau deja pe acest dispozitiv)
+    localProducts.forEach((p) => {
+      if (p && p.id) {
+        if (!mergedMap.has(p.id)) {
+          mergedMap.set(p.id, normalizeProduct(p));
+        } else {
+          // Dacă există pe ambele, păstrăm cel mai recent modificat sau cel local dacă are detalii
+          const existing = mergedMap.get(p.id)!;
+          const merged = { ...existing, ...p, campaign: { ...existing.campaign, ...(p.campaign || {}) } };
+          mergedMap.set(p.id, normalizeProduct(merged));
+        }
       }
+    });
+
+    const finalProducts = Array.from(mergedMap.values()).map(normalizeProduct);
+
+    // Salvăm lista unită în localStorage pe dispozitivul curent
+    if (finalProducts.length > 0) {
+      storageService.saveProducts(finalProducts);
+      // Sincronizăm lista completă în Cloud pentru ca și celelalte dispozitive (telefon, pc) să o aibă
+      await authService.syncProductsToCloud(user, finalProducts).catch(() => {});
       return finalProducts;
     }
 
-    // Fallback la cele locale
-    return localProducts;
+    return localProducts.map(normalizeProduct);
+  },
+
+  // Verificare periodică și descărcare noutăți din Cloud
+  pollAndSyncFromCloud: async (user: AuthUser, currentProducts: Product[]): Promise<Product[] | null> => {
+    try {
+      const cloudProducts = await authService.fetchProductsFromCloud(user);
+      if (!cloudProducts || !Array.isArray(cloudProducts)) return null;
+
+      // Verificăm dacă sunt produse noi în Cloud care lipsesc local
+      const localIds = new Set((currentProducts || []).map((p) => p?.id));
+      const hasNew = cloudProducts.some((p) => p?.id && !localIds.has(p.id));
+
+      if (hasNew || cloudProducts.length > currentProducts.length) {
+        const mergedMap = new Map<string, Product>();
+        cloudProducts.forEach((p) => {
+          if (p && p.id) mergedMap.set(p.id, normalizeProduct(p));
+        });
+        currentProducts.forEach((p) => {
+          if (p && p.id && !mergedMap.has(p.id)) {
+            mergedMap.set(p.id, normalizeProduct(p));
+          }
+        });
+        const updated = Array.from(mergedMap.values()).map(normalizeProduct);
+        storageService.saveProducts(updated);
+        return updated;
+      }
+    } catch {}
+    return null;
   },
 
   // Salvare produse în Cloud pentru contul curent
   syncProductsToCloud: async (user: AuthUser, products: Product[]): Promise<boolean> => {
     let success = false;
+    const safeProducts = authService.sanitizeForCloud(products);
 
     // 1. Salvare în Firebase Firestore dacă este activ
     try {
@@ -186,7 +241,7 @@ export const authService = {
         await setDoc(
           userDocRef,
           {
-            products,
+            products: safeProducts,
             updatedAt: new Date().toISOString(),
             email: user.email,
             displayName: user.displayName,
@@ -207,7 +262,7 @@ export const authService = {
         body: JSON.stringify({
           name: `${user.username}_ecom`,
           data: {
-            products,
+            products: safeProducts,
             userId: user.uid,
             username: user.username,
             updatedAt: new Date().toISOString(),
@@ -235,7 +290,7 @@ export const authService = {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (data && Array.isArray(data.products)) {
-            return data.products;
+            return data.products.map(normalizeProduct);
           }
         }
       }
@@ -249,7 +304,7 @@ export const authService = {
       if (res.ok) {
         const json = await res.json();
         if (json?.data?.products && Array.isArray(json.data.products)) {
-          return json.data.products;
+          return json.data.products.map(normalizeProduct);
         }
       }
     } catch (err) {

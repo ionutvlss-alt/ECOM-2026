@@ -1,86 +1,91 @@
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getFirestore, enableIndexedDbPersistence, Firestore } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
 
 export interface FirebaseCustomConfig {
   apiKey: string;
   authDomain: string;
   projectId: string;
-  storageBucket?: string;
-  messagingSenderId?: string;
-  appId?: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
 }
 
-const FIREBASE_CONFIG_KEY = 'ecom_firebase_custom_config';
+export const firebaseConfig: FirebaseCustomConfig = {
+  apiKey: "AIzaSyB14B2-Flsi9XxJx8bL6v1g2PLhu0uoCVA",
+  authDomain: "review-tracker-b3291.firebaseapp.com",
+  projectId: "review-tracker-b3291",
+  storageBucket: "review-tracker-b3291.firebasestorage.app",
+  messagingSenderId: "308280428536",
+  appId: "1:308280428536:web:f55971c1bb78f6fbfcf80d",
+  measurementId: "G-EG6H4HHLCF"
+};
 
-// Configurație implicită sau salvată în browser
-export const getStoredFirebaseConfig = (): FirebaseCustomConfig => {
+const STORAGE_KEY = 'ecom_custom_firebase_config_v1';
+
+export function getStoredFirebaseConfig(): FirebaseCustomConfig {
   try {
-    const raw = localStorage.getItem(FIREBASE_CONFIG_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.apiKey && parsed.projectId) {
+        return parsed;
+      }
     }
   } catch {}
+  return firebaseConfig;
+}
 
-  // Fallback la variabile de mediu dacă există
-  return {
-    apiKey: (import.meta as any).env?.VITE_FIREBASE_API_KEY || '',
-    authDomain: (import.meta as any).env?.VITE_FIREBASE_AUTH_DOMAIN || '',
-    projectId: (import.meta as any).env?.VITE_FIREBASE_PROJECT_ID || '',
-    storageBucket: (import.meta as any).env?.VITE_FIREBASE_STORAGE_BUCKET || '',
-    messagingSenderId: (import.meta as any).env?.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
-    appId: (import.meta as any).env?.VITE_FIREBASE_APP_ID || '',
-  };
-};
-
-export const saveStoredFirebaseConfig = (cfg: FirebaseCustomConfig) => {
+export function saveStoredFirebaseConfig(config: FirebaseCustomConfig): void {
   try {
-    localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(cfg));
-  } catch (e) {
-    console.error('Nu s-a putut salva configurarea Firebase:', e);
-  }
-};
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+  } catch {}
+}
 
-let cachedApp: FirebaseApp | null = null;
-let cachedAuth: Auth | null = null;
-let cachedFirestore: Firestore | null = null;
+const activeConfig = typeof window !== 'undefined' ? getStoredFirebaseConfig() : firebaseConfig;
 
-export const initFirebase = (): {
-  app: FirebaseApp | null;
-  auth: Auth | null;
-  firestore: Firestore | null;
-  isConfigured: boolean;
-} => {
-  const config = getStoredFirebaseConfig();
-  if (!config.apiKey || !config.projectId) {
-    return { app: null, auth: null, firestore: null, isConfigured: false };
-  }
-
-  try {
-    const app = getApps().length > 0 ? getApp() : initializeApp(config);
-    const auth = getAuth(app);
-    const firestore = getFirestore(app);
-    cachedApp = app;
-    cachedAuth = auth;
-    cachedFirestore = firestore;
-    return { app, auth, firestore, isConfigured: true };
-  } catch (err) {
-    console.warn('Eroare inițializare Firebase SDK:', err);
-    return { app: null, auth: null, firestore: null, isConfigured: false };
-  }
-};
-
-export const getFirebaseAuth = (): Auth | null => {
-  if (cachedAuth) return cachedAuth;
-  return initFirebase().auth;
-};
-
-export const getFirebaseFirestore = (): Firestore | null => {
-  if (cachedFirestore) return cachedFirestore;
-  return initFirebase().firestore;
-};
-
+// Singleton initialization
+export const app = getApps().length > 0 ? getApp() : initializeApp(activeConfig);
+export const db: Firestore = getFirestore(app);
+export const auth: Auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
+
+export function getFirebaseAuth(): Auth | null {
+  try {
+    return auth;
+  } catch {
+    return null;
+  }
+}
+
+export function getFirebaseFirestore(): Firestore | null {
+  try {
+    return db;
+  } catch {
+    return null;
+  }
+}
+
+export function initFirebase(cfg?: FirebaseCustomConfig) {
+  if (cfg) {
+    saveStoredFirebaseConfig(cfg);
+  }
+  return { app, db, auth, isConfigured: Boolean(app && db && activeConfig?.apiKey) };
+}
+
+// Activare persistență offline nativă Firebase
+try {
+  if (typeof window !== 'undefined') {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Tab multiplu deschis
+        console.warn('Firebase persistence warning: multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Firebase persistence not supported by browser');
+      }
+    });
+  }
+} catch (e) {
+  // Ignoră erorile de persistență în mediu server
+}

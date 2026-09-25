@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Product } from '../types/product';
 import { X, Eye, ExternalLink } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { safeFormatNumber } from '../utils/productNormalizer';
 
 interface GalleryViewProps {
   products: Product[];
@@ -83,7 +84,7 @@ export const GalleryView: React.FC<GalleryViewProps> = ({
                     </h4>
                     <div className="flex items-center justify-between mt-1 text-[11px] text-neutral-200">
                       <span className="font-mono tabular-nums font-semibold">
-                        {item.price} {item.currency}
+                        {safeFormatNumber(item.price)} {item.currency || 'RON'}
                       </span>
                       <button
                         type="button"

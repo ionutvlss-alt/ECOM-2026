@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product } from '../types/product';
 import { BarChart2, TrendingUp, Award, DollarSign, Layers, Megaphone } from 'lucide-react';
+import { safeFormatNumber } from '../utils/productNormalizer';
 
 interface ReportsViewProps {
   products: Product[];
@@ -13,24 +14,24 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   categories,
   onSelectProduct,
 }) => {
-  const winners = products.filter((p) => p.campaign?.status === 'winner');
-  const totalSpend = products.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-  const totalRev = products.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
+  const winners = products.filter((p) => p?.campaign?.status === 'winner');
+  const totalSpend = products.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+  const totalRev = products.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
   const totalProfit = totalRev - totalSpend;
   const globalRoas = totalSpend > 0 ? (totalRev / totalSpend).toFixed(2) : '0';
-  const totalOrders = products.reduce((sum, p) => sum + (p.campaign?.ordersCount || 0), 0);
+  const totalOrders = products.reduce((sum, p) => sum + (Number(p?.campaign?.ordersCount) || 0), 0);
   const avgCpa = totalOrders > 0 ? (totalSpend / totalOrders).toFixed(1) : '0';
 
   // Cel mai mare ROAS
-  const topProduct = [...products].sort((a, b) => (b.campaign?.roas || 0) - (a.campaign?.roas || 0))[0];
+  const topProduct = [...products].sort((a, b) => (Number(b?.campaign?.roas) || 0) - (Number(a?.campaign?.roas) || 0))[0];
 
   // Platform breakdown (TikTok vs Facebook vs Google etc.)
   const platforms = ['TikTok Ads', 'Facebook Ads', 'Google Ads'];
   const platformStats = platforms.map((plat) => {
-    const platProducts = products.filter((p) => (p.campaign?.platform || '').toLowerCase().includes(plat.toLowerCase().split(' ')[0]));
-    const spend = platProducts.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-    const rev = platProducts.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
-    const orders = platProducts.reduce((sum, p) => sum + (p.campaign?.ordersCount || 0), 0);
+    const platProducts = products.filter((p) => (p?.campaign?.platform || '').toLowerCase().includes(plat.toLowerCase().split(' ')[0]));
+    const spend = platProducts.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+    const rev = platProducts.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
+    const orders = platProducts.reduce((sum, p) => sum + (Number(p?.campaign?.ordersCount) || 0), 0);
     const roas = spend > 0 ? (rev / spend).toFixed(2) : '0';
     const profit = rev - spend;
 
@@ -47,10 +48,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
 
   // Categorii breakdown
   const categoryStats = categories.map((cat) => {
-    const catProducts = products.filter((p) => (p.category || '').toLowerCase() === cat.toLowerCase());
-    const spend = catProducts.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-    const rev = catProducts.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
-    const orders = catProducts.reduce((sum, p) => sum + (p.campaign?.ordersCount || 0), 0);
+    const catProducts = products.filter((p) => (p?.category || '').toLowerCase() === cat.toLowerCase());
+    const spend = catProducts.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+    const rev = catProducts.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
+    const orders = catProducts.reduce((sum, p) => sum + (Number(p?.campaign?.ordersCount) || 0), 0);
     const roas = spend > 0 ? (rev / spend).toFixed(2) : '-';
 
     return {
@@ -120,7 +121,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             <span>Profit Net din Reclame</span>
           </div>
           <div className={`text-2xl font-bold font-mono mt-2 ${totalProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-            {totalProfit >= 0 ? `+${totalProfit.toLocaleString('ro-RO')}` : totalProfit.toLocaleString('ro-RO')} RON
+            {totalProfit >= 0 ? `+${safeFormatNumber(totalProfit)}` : safeFormatNumber(totalProfit)} RON
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
             ROAS mediu: {globalRoas}x
@@ -165,10 +166,10 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                 <tr key={p.platform} className="hover:bg-neutral-50">
                   <td className="py-3 px-3 font-bold text-neutral-900">{p.platform}</td>
                   <td className="py-3 px-3 font-mono">{p.count}</td>
-                  <td className="py-3 px-3 font-mono">{p.spend.toLocaleString('ro-RO')} RON</td>
-                  <td className="py-3 px-3 font-mono font-semibold">{p.rev.toLocaleString('ro-RO')} RON</td>
+                  <td className="py-3 px-3 font-mono">{safeFormatNumber(p.spend)} RON</td>
+                  <td className="py-3 px-3 font-mono font-semibold">{safeFormatNumber(p.rev)} RON</td>
                   <td className={`py-3 px-3 font-mono font-bold ${p.profit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                    {p.profit >= 0 ? `+${p.profit.toLocaleString('ro-RO')}` : p.profit.toLocaleString('ro-RO')} RON
+                    {p.profit >= 0 ? `+${safeFormatNumber(p.profit)}` : safeFormatNumber(p.profit)} RON
                   </td>
                   <td className="py-3 px-3 font-mono font-bold text-[#0f4a3c]">{p.roas}x</td>
                   <td className="py-3 px-3 font-mono">{p.orders}</td>
@@ -207,8 +208,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <tr key={c.category} className="hover:bg-neutral-50">
                     <td className="py-3 px-3 font-bold text-neutral-900">{c.category}</td>
                     <td className="py-3 px-3 font-mono">{c.count}</td>
-                    <td className="py-3 px-3 font-mono">{c.spend.toLocaleString('ro-RO')} RON</td>
-                    <td className="py-3 px-3 font-mono font-semibold">{c.rev.toLocaleString('ro-RO')} RON</td>
+                    <td className="py-3 px-3 font-mono">{safeFormatNumber(c.spend)} RON</td>
+                    <td className="py-3 px-3 font-mono font-semibold">{safeFormatNumber(c.rev)} RON</td>
                     <td className="py-3 px-3 font-mono font-bold text-[#0f4a3c]">{c.roas !== '-' ? `${c.roas}x` : '—'}</td>
                     <td className="py-3 px-3 font-mono">{c.orders}</td>
                   </tr>

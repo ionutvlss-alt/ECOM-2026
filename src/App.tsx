@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Product, FilterOptions, CampaignStatus } from './types/product';
+import { Product, FilterOptions, CampaignStatus, ProductChecklist, ListingStatus } from './types/product';
+import { Supplier } from './types/supplier';
 import { storageService } from './services/storageService';
 import { Sidebar } from './components/Sidebar';
 import { HeaderBar } from './components/HeaderBar';
@@ -14,25 +15,38 @@ import { ProductCard } from './components/ProductCard';
 import { TableView } from './components/TableView';
 import { KanbanView } from './components/KanbanView';
 import { CampaignsView } from './components/CampaignsView';
+import { SuppliersView } from './components/SuppliersView';
 import { CategoriesView } from './components/CategoriesView';
 import { GalleryView } from './components/GalleryView';
 import { ReportsView } from './components/ReportsView';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
+import { SupplierFormModal } from './components/SupplierFormModal';
 import { ExportImportModal } from './components/ExportImportModal';
 import { DeviceSyncModal } from './components/DeviceSyncModal';
 import { AuthModal } from './components/AuthModal';
+import { AccessPinModal } from './components/AccessPinModal';
 import { authService, AuthUser } from './services/authService';
+import { serverSyncService, ServerSyncState } from './services/serverSyncService';
+import { firestoreSyncService } from './services/firestoreSyncService';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { normalizeProduct } from './utils/productNormalizer';
 import { Plus, Package, AlertCircle } from 'lucide-react';
 
 export default function App() {
-  const [products, setProducts] = useState<Product[]>(() => storageService.getProducts());
+  const [products, setProducts] = useState<Product[]>(() => (storageService.getProducts() || []).map(normalizeProduct));
   const [categories, setCategories] = useState<string[]>(() => storageService.getCategories());
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports'>('dashboard');
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => storageService.getSuppliers());
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'reports'>('dashboard');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+
+  // Stare Autentificare PIN unic: 6122 (permite acces și sincronizare pe Telefon, PC și Laptop)
+  const [isPinUnlocked, setIsPinUnlocked] = useState<boolean>(() => serverSyncService.isPinAuthenticated());
+  const [serverSyncState, setServerSyncState] = useState<ServerSyncState>(() => serverSyncService.getSyncState());
+  const [lastKnownVersion, setLastKnownVersion] = useState<number>(0);
 
   // Filter state
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -46,10 +60,177 @@ export default function App() {
   // Modal states
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isExportImportOpen, setIsExportImportOpen] = useState(false);
   const [isDeviceSyncOpen, setIsDeviceSyncOpen] = useState(false);
   const [urlSyncRoomCode, setUrlSyncRoomCode] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // Ascultare modificări stare conexiune server
+  useEffect(() => {
+    const unsub = serverSyncService.subscribeSyncState(setServerSyncState);
+    return unsub;
+  }, []);
+
+  // Sincronizare completă cu serverul Cloud (Telefon <-> PC <-> Laptop)
+  const performFullServerSync = async (forcePushLocal = false) => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const serverData = await serverSyncService.fetchServerData();
+      if (serverData) {
+        setLastKnownVersion(serverData.version);
+
+        if (serverData.products && serverData.products.length > 0) {
+          const mergedMap = new Map<string, Product>();
+          serverData.products.forEach((p) => {
+            if (p && p.id) mergedMap.set(p.id, normalizeProduct(p));
+          });
+
+          // Păstrăm produsele locale noi dacă existau
+          products.forEach((p) => {
+            if (p && p.id && !mergedMap.has(p.id)) {
+              mergedMap.set(p.id, normalizeProduct(p));
+            }
+          });
+
+          const finalList = Array.from(mergedMap.values());
+          setProducts(finalList);
+          storageService.saveProducts(finalList);
+
+          if (serverData.suppliers && serverData.suppliers.length > 0) {
+            setSuppliers(serverData.suppliers);
+            storageService.saveSuppliers(serverData.suppliers);
+          }
+          if (serverData.categories && serverData.categories.length > 0) {
+            setCategories(serverData.categories);
+            storageService.saveCategories(serverData.categories);
+          }
+
+          if (finalList.length > serverData.products.length) {
+            await serverSyncService.syncWithServer(finalList, serverData.suppliers || suppliers, serverData.categories || categories);
+          }
+        } else if (products.length > 0 || forcePushLocal) {
+          await serverSyncService.syncWithServer(products, suppliers, categories);
+        }
+      }
+    } catch (err) {
+      console.warn('Eroare sincronizare server:', err);
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
+
+  const handleManualSync = async () => {
+    await performFullServerSync(true);
+  };
+
+  // Blochează ecranul (solicită PIN 6122 pentru deblocare)
+  const handleLockAccess = () => {
+    serverSyncService.lockAccess();
+    setIsPinUnlocked(false);
+  };
+
+  // Callback la deblocare cu PIN 6122
+  const handlePinSuccess = () => {
+    setIsPinUnlocked(true);
+    performFullServerSync(false);
+  };
+
+  // 1. Sincronizare în timp real Google Cloud Firestore (proiectul: review-tracker-b3291)
+  useEffect(() => {
+    if (!isPinUnlocked) return;
+
+    // Încărcare inițială a datelor locale pe Firestore dacă baza din cloud e goală
+    firestoreSyncService.seedInitialDataIfEmpty(products, suppliers, categories);
+
+    const unsubProducts = firestoreSyncService.subscribeProducts((firestoreProducts) => {
+      if (firestoreProducts && firestoreProducts.length > 0) {
+        setProducts(firestoreProducts);
+      }
+    });
+
+    const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
+      if (firestoreSuppliers && firestoreSuppliers.length > 0) {
+        setSuppliers(firestoreSuppliers);
+      }
+    });
+
+    const unsubCategories = firestoreSyncService.subscribeCategories((firestoreCategories) => {
+      if (firestoreCategories && firestoreCategories.length > 0) {
+        setCategories(firestoreCategories);
+      }
+    });
+
+    return () => {
+      unsubProducts();
+      unsubSuppliers();
+      unsubCategories();
+    };
+  }, [isPinUnlocked]);
+
+  // Sincronizare la pornire cu IndexedDB și Serverul Cloud
+  useEffect(() => {
+    storageService.syncWithIndexedDB().then((res) => {
+      if (res) {
+        if (res.products && res.products.length > products.length) {
+          setProducts(res.products.map(normalizeProduct));
+        }
+        if (res.categories && res.categories.length > categories.length) {
+          setCategories(res.categories);
+        }
+        if (res.suppliers && res.suppliers.length > 0) {
+          setSuppliers(res.suppliers);
+        }
+      }
+    }).finally(() => {
+      if (isPinUnlocked) {
+        performFullServerSync();
+      }
+    });
+  }, [isPinUnlocked]);
+
+  // Sincronizare automată în fundal între dispozitive (Telefon <-> PC <-> Laptop)
+  useEffect(() => {
+    if (!isPinUnlocked) return;
+
+    const checkServerUpdates = async () => {
+      try {
+        const serverData = await serverSyncService.fetchServerData();
+        if (serverData && serverData.version > lastKnownVersion) {
+          setLastKnownVersion(serverData.version);
+          if (Array.isArray(serverData.products)) {
+            if (serverData.products.length > 0 || products.length === 0) {
+              const normalized = serverData.products.map(normalizeProduct);
+              setProducts(normalized);
+              storageService.saveProducts(normalized);
+            } else if (products.length > 0 && serverData.products.length === 0) {
+              // Serverul s-a repornit gol, reîncărcăm automat datele locale pe server
+              serverSyncService.syncWithServer(products, suppliers, categories).catch(() => {});
+            }
+          }
+          if (Array.isArray(serverData.suppliers)) {
+            setSuppliers(serverData.suppliers);
+            storageService.saveSuppliers(serverData.suppliers);
+          }
+          if (Array.isArray(serverData.categories) && serverData.categories.length > 0) {
+            setCategories(serverData.categories);
+            storageService.saveCategories(serverData.categories);
+          }
+        }
+      } catch {}
+    };
+
+    const interval = setInterval(checkServerUpdates, 4000);
+    window.addEventListener('focus', checkServerUpdates);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkServerUpdates);
+    };
+  }, [isPinUnlocked, lastKnownVersion]);
 
   // Detect URL parameter ?sync_room=XYZ on phone or secondary device
   useEffect(() => {
@@ -59,52 +240,31 @@ export default function App() {
       if (room) {
         setUrlSyncRoomCode(room);
         setIsDeviceSyncOpen(true);
-        // Clean URL without reloading
         const cleanUrl = window.location.pathname;
         window.history.replaceState({}, '', cleanUrl);
       }
     } catch {}
   }, []);
 
-  // Sync products to storage and cloud
+  // Sincronizare produse local + Google Cloud Firestore + Server
   const updateProducts = (newProducts: Product[]) => {
-    setProducts(newProducts);
-    storageService.saveProducts(newProducts);
-    if (currentUser) {
-      authService.syncProductsToCloud(currentUser, newProducts).catch((err) => {
-        console.warn('Eroare sincronizare cloud:', err);
-      });
-    }
+    const normalized = (newProducts || []).map(normalizeProduct);
+    setProducts(normalized);
+    storageService.saveProducts(normalized);
+    
+    // Salvare în Google Cloud Firestore (timp real)
+    normalized.forEach((p) => {
+      firestoreSyncService.saveProduct(p).catch(() => {});
+    });
+
+    serverSyncService.syncWithServer(normalized, suppliers, categories).then((res) => {
+      if (res && res.products) {
+        setLastKnownVersion((prev) => prev + 1);
+      }
+    }).catch((err) => {
+      console.warn('Eroare sincronizare server fundal:', err);
+    });
   };
-
-  // Auth listener & automatic background sync for logged in user
-  useEffect(() => {
-    const unsub = authService.subscribeAuth((user) => {
-      setCurrentUser(user);
-      if (user) {
-        authService.claimAndSyncProducts(user).then((synced) => {
-          if (synced && synced.length > 0) {
-            setProducts(synced);
-          }
-        }).catch(() => {});
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  // Sincronizare la pornire cu IndexedDB și recuperare date extinse
-  useEffect(() => {
-    storageService.syncWithIndexedDB().then((res) => {
-      if (res) {
-        if (res.products && res.products.length > products.length) {
-          setProducts(res.products);
-        }
-        if (res.categories && res.categories.length > categories.length) {
-          setCategories(res.categories);
-        }
-      }
-    });
-  }, []);
 
   // Keep selectedProduct in sync
   useEffect(() => {
@@ -120,11 +280,51 @@ export default function App() {
   const handleAddCategory = (categoryName: string) => {
     const updated = storageService.addCategory(categoryName);
     setCategories(updated);
+    firestoreSyncService.saveCategories(updated).catch(() => {});
+    serverSyncService.syncWithServer(products, suppliers, updated).catch(() => {});
   };
 
   const handleDeleteCategory = (categoryName: string) => {
     const updated = storageService.deleteCategory(categoryName);
     setCategories(updated);
+    firestoreSyncService.saveCategories(updated).catch(() => {});
+    serverSyncService.syncWithServer(products, suppliers, updated).catch(() => {});
+  };
+
+  const handleRenameCategory = (oldName: string, newName: string) => {
+    const res = storageService.renameCategory(oldName, newName);
+    setCategories(res.categories);
+    updateProducts(res.updatedProducts);
+  };
+
+  // Supplier handlers
+  const handleSaveSupplier = (supplier: Supplier) => {
+    setSuppliers((prev) => {
+      const idx = prev.findIndex((s) => s.id === supplier.id);
+      let updated: Supplier[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = supplier;
+      } else {
+        updated = [supplier, ...prev];
+      }
+      storageService.saveSuppliers(updated);
+      firestoreSyncService.saveSupplier(supplier).catch(() => {});
+      serverSyncService.syncWithServer(products, updated, categories).catch(() => {});
+      return updated;
+    });
+    setIsSupplierModalOpen(false);
+    setEditingSupplier(null);
+  };
+
+  const handleDeleteSupplier = (supplierId: string) => {
+    setSuppliers((prev) => {
+      const updated = prev.filter((s) => s.id !== supplierId);
+      storageService.saveSuppliers(updated);
+      firestoreSyncService.deleteSupplier(supplierId).catch(() => {});
+      serverSyncService.syncWithServer(products, updated, categories).catch(() => {});
+      return updated;
+    });
   };
 
   // Handle Save (Create or Edit)
@@ -132,6 +332,7 @@ export default function App() {
     if (newCategoryCreated) {
       const updatedCats = storageService.addCategory(newCategoryCreated);
       setCategories(updatedCats);
+      firestoreSyncService.saveCategories(updatedCats).catch(() => {});
     }
 
     const existingIndex = products.findIndex((p) => p.id === product.id);
@@ -145,6 +346,7 @@ export default function App() {
     }
 
     updateProducts(updated);
+    firestoreSyncService.saveProduct(product).catch(() => {});
     setIsNewProductOpen(false);
     setEditingProduct(null);
 
@@ -159,6 +361,7 @@ export default function App() {
     if (window.confirm('Ești sigur că vrei să ștergi acest produs din evidență?')) {
       const updated = products.filter((p) => p.id !== productId);
       updateProducts(updated);
+      firestoreSyncService.deleteProduct(productId).catch(() => {});
       if (selectedProduct?.id === productId) {
         setSelectedProduct(null);
       }
@@ -195,13 +398,47 @@ export default function App() {
     updateProducts(updated);
   };
 
+  // Handle Checklist Update
+  const handleUpdateChecklist = (productId: string, newChecklist: ProductChecklist) => {
+    const updated = products.map((p) => {
+      if (p.id === productId) {
+        return { ...p, checklist: newChecklist };
+      }
+      return p;
+    });
+    updateProducts(updated);
+  };
+
+  // Handle Listing Status Update (planned / in_progress / live)
+  const handleUpdateListingStatus = (productId: string, newStatus: ListingStatus) => {
+    const updated = products.map((p) => {
+      if (p.id === productId) {
+        return { ...p, listingStatus: newStatus };
+      }
+      return p;
+    });
+    updateProducts(updated);
+  };
+
+  // Extract unique target sites for autocomplete & suggestions
+  const existingTargetSites = useMemo(() => {
+    const list = products
+      .map((p) => (p.targetSite || '').trim())
+      .filter((s): s is string => Boolean(s));
+    return Array.from(new Set(list));
+  }, [products]);
+
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
-    return products
+    const list = Array.isArray(products)
+      ? products.filter((p): p is Product => Boolean(p && typeof p === 'object' && p.id))
+      : [];
+
+    return list
       .filter((p) => {
         // Search
         if (filterOptions.search) {
-          const q = filterOptions.search.toLowerCase();
+          const q = filterOptions.search.toLowerCase().trim();
           const matchTitle = (p.title || '').toLowerCase().includes(q);
           const matchBrand = (p.brand || '').toLowerCase().includes(q);
           const matchStore = (p.storeName || '').toLowerCase().includes(q);
@@ -235,29 +472,42 @@ export default function App() {
         return true;
       })
       .sort((a, b) => {
+        if (!a && !b) return 0;
+        if (!a) return 1;
+        if (!b) return -1;
         switch (filterOptions.sortBy) {
-          case 'date_desc':
-            return new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime();
-          case 'date_asc':
-            return new Date(a.createdAt || '').getTime() - new Date(b.createdAt || '').getTime();
+          case 'date_desc': {
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+          }
+          case 'date_asc': {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return (Number.isFinite(timeA) ? timeA : 0) - (Number.isFinite(timeB) ? timeB : 0);
+          }
           case 'roas_desc':
-            return (b.campaign?.roas || 0) - (a.campaign?.roas || 0);
+            return (Number(b.campaign?.roas) || 0) - (Number(a.campaign?.roas) || 0);
           case 'revenue_desc':
-            return (b.campaign?.revenue || 0) - (a.campaign?.revenue || 0);
+            return (Number(b.campaign?.revenue) || 0) - (Number(a.campaign?.revenue) || 0);
           case 'spend_desc':
-            return (b.campaign?.adSpend || 0) - (a.campaign?.adSpend || 0);
+            return (Number(b.campaign?.adSpend) || 0) - (Number(a.campaign?.adSpend) || 0);
           case 'price_desc':
-            return (b.price || 0) - (a.price || 0);
+            return (Number(b.price) || 0) - (Number(a.price) || 0);
           case 'name_asc':
-            return (a.title || '').localeCompare(b.title || '', 'ro');
+            return String(a.title || '').localeCompare(String(b.title || ''), 'ro');
           default:
             return 0;
         }
       });
   }, [products, filterOptions]);
 
-  const testingCount = products.filter((p) => (p.campaign?.status || 'testing') === 'testing').length;
-  const winnersCount = products.filter((p) => p.campaign?.status === 'winner').length;
+  const testingCount = Array.isArray(products)
+    ? products.filter((p) => p && (p.campaign?.status || 'testing') === 'testing').length
+    : 0;
+  const winnersCount = Array.isArray(products)
+    ? products.filter((p) => p && p.campaign?.status === 'winner').length
+    : 0;
 
   return (
     <div className="min-h-screen bg-[#f8faf9] text-neutral-900 flex antialiased selection:bg-emerald-100 selection:text-emerald-900 font-sans">
@@ -266,6 +516,7 @@ export default function App() {
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         productsCount={products.length}
+        suppliersCount={suppliers.length}
         winnersCount={winnersCount}
         testingCount={testingCount}
         userName={currentUser?.username || "ionutvlss"}
@@ -278,6 +529,7 @@ export default function App() {
         }}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onLockAccess={handleLockAccess}
       />
 
       {/* Main Content wrapper */}
@@ -292,13 +544,18 @@ export default function App() {
             setIsDeviceSyncOpen(true);
           }}
           onOpenAuth={() => setIsAuthOpen(true)}
+          onManualSync={handleManualSync}
+          onLockAccess={handleLockAccess}
+          isSyncing={isSyncing}
+          syncState={serverSyncState}
           currentUser={currentUser}
           userName={currentUser?.username || "ionutvlss"}
         />
 
         {/* Workspace Body */}
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-6 sm:py-8">
-          {/* Tab 1: Dashboard Overview */}
+          <ErrorBoundary>
+            {/* Tab 1: Dashboard Overview */}
           {currentTab === 'dashboard' && (
             <DashboardOverview
               products={products}
@@ -313,7 +570,8 @@ export default function App() {
 
           {/* Tab 2: Catalog Produse */}
           {currentTab === 'catalog' && (
-            <div className="space-y-6">
+            <ErrorBoundary>
+              <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
@@ -420,6 +678,7 @@ export default function App() {
                 />
               )}
             </div>
+            </ErrorBoundary>
           )}
 
           {/* Tab 3: Campanii Ads & Rezultate (Facebook & TikTok) */}
@@ -434,6 +693,32 @@ export default function App() {
             />
           )}
 
+          {/* Tab Furnizori & Contacte (Cerut de utilizator) */}
+          {currentTab === 'suppliers' && (
+            <SuppliersView
+              suppliers={suppliers}
+              products={products}
+              onOpenAddModal={() => {
+                setEditingSupplier(null);
+                setIsSupplierModalOpen(true);
+              }}
+              onEditSupplier={(supplier) => {
+                setEditingSupplier(supplier);
+                setIsSupplierModalOpen(true);
+              }}
+              onDeleteSupplier={handleDeleteSupplier}
+              onSelectProductByTitle={(title) => {
+                const match = products.find((p) => p.title.toLowerCase() === title.toLowerCase());
+                if (match) {
+                  setSelectedProduct(match);
+                } else {
+                  setFilterOptions((prev) => ({ ...prev, search: title }));
+                  setCurrentTab('catalog');
+                }
+              }}
+            />
+          )}
+
           {/* Tab 4: Gestionare Categorii (Pagina specială cerută de utilizator!) */}
           {currentTab === 'categories' && (
             <CategoriesView
@@ -441,6 +726,7 @@ export default function App() {
               products={products}
               onAddCategory={handleAddCategory}
               onDeleteCategory={handleDeleteCategory}
+              onRenameCategory={handleRenameCategory}
               onSelectCategoryFilter={(categoryName) => {
                 setFilterOptions((prev) => ({ ...prev, category: categoryName }));
                 setCurrentTab('catalog');
@@ -497,35 +783,54 @@ export default function App() {
               onSelectProduct={setSelectedProduct}
             />
           )}
+          </ErrorBoundary>
         </main>
       </div>
 
       {/* Modals */}
       {selectedProduct && (
-        <ProductDetailModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onEdit={(product) => {
-            setSelectedProduct(null);
-            setEditingProduct(product);
-            setIsNewProductOpen(true);
-          }}
-          onDelete={(productId) => {
-            handleDeleteProduct(productId);
-          }}
-          onUpdateStatus={handleUpdateCampaignStatus}
-          onToggleFavorite={handleToggleFavorite}
-        />
+        <ErrorBoundary>
+          <ProductDetailModal
+            product={selectedProduct}
+            onClose={() => setSelectedProduct(null)}
+            onEdit={(product) => {
+              setSelectedProduct(null);
+              setEditingProduct(product);
+              setIsNewProductOpen(true);
+            }}
+            onDelete={(productId) => {
+              handleDeleteProduct(productId);
+            }}
+            onUpdateStatus={handleUpdateCampaignStatus}
+            onToggleFavorite={handleToggleFavorite}
+            onUpdateChecklist={handleUpdateChecklist}
+            onUpdateListingStatus={handleUpdateListingStatus}
+          />
+        </ErrorBoundary>
       )}
 
       {isNewProductOpen && (
         <ProductFormModal
           initialProduct={editingProduct}
           categories={categories}
+          suppliers={suppliers}
+          existingTargetSites={existingTargetSites}
           onSave={handleSaveProduct}
           onClose={() => {
             setIsNewProductOpen(false);
             setEditingProduct(null);
+          }}
+        />
+      )}
+
+      {isSupplierModalOpen && (
+        <SupplierFormModal
+          initialSupplier={editingSupplier}
+          catalogProducts={products}
+          onSave={handleSaveSupplier}
+          onClose={() => {
+            setIsSupplierModalOpen(false);
+            setEditingSupplier(null);
           }}
         />
       )}
@@ -581,6 +886,11 @@ export default function App() {
           }}
           onClose={() => setIsAuthOpen(false)}
         />
+      )}
+
+      {/* Ecran de blocare și autentificare securizată cu PIN unic: 6122 */}
+      {!isPinUnlocked && (
+        <AccessPinModal onSuccess={handlePinSuccess} />
       )}
     </div>
   );

@@ -12,14 +12,17 @@ import {
   Smartphone,
   Cloud,
   LogIn,
-  ShieldCheck
+  ShieldCheck,
+  Building2,
+  Lock
 } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
 interface SidebarProps {
-  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports';
-  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'categories' | 'gallery' | 'reports') => void;
+  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'reports';
+  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'reports') => void;
   productsCount: number;
+  suppliersCount?: number;
   winnersCount: number;
   testingCount: number;
   userName?: string;
@@ -29,12 +32,14 @@ interface SidebarProps {
   onOpenDeviceSync?: () => void;
   currentUser?: AuthUser | null;
   onOpenAuth?: () => void;
+  onLockAccess?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onTabChange,
   productsCount,
+  suppliersCount = 0,
   winnersCount,
   testingCount,
   userName = 'ionutvlss',
@@ -44,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenDeviceSync,
   currentUser = null,
   onOpenAuth,
+  onLockAccess,
 }) => {
   const handleNav = (tab: typeof currentTab) => {
     onTabChange(tab);
@@ -127,6 +133,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <Megaphone className={`w-4 h-4 ${currentTab === 'campaigns' ? 'text-[#134e48]' : 'text-neutral-500'}`} />
               <span>Campanii Ads</span>
+            </button>
+
+            <button
+              onClick={() => handleNav('suppliers')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                currentTab === 'suppliers'
+                  ? 'bg-[#eaf3ee] text-[#134e48] font-semibold'
+                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Building2 className={`w-4 h-4 ${currentTab === 'suppliers' ? 'text-[#134e48]' : 'text-neutral-500'}`} />
+                <span>Contacte Furnizori</span>
+              </div>
+              {suppliersCount > 0 && (
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">
+                  {suppliersCount}
+                </span>
+              )}
             </button>
 
             <button
@@ -223,52 +248,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* User Profile Card */}
-        <div className="p-4 border-t border-neutral-150">
-          {currentUser ? (
-            <button
-              onClick={() => {
-                if (onOpenAuth) onOpenAuth();
-                onCloseMobile();
-              }}
-              className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-neutral-100 transition-colors text-left cursor-pointer group"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {currentUser.photoURL ? (
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.displayName}
-                    className="w-8 h-8 rounded-full object-cover border border-[#0f4a3c]/30 shadow-2xs shrink-0"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-[#0f4a3c] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-                    {currentUser.displayName.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-neutral-900 truncate">
-                    {currentUser.displayName}
-                  </div>
-                  <div className="text-[10px] text-emerald-700 flex items-center gap-1 font-semibold truncate">
-                    <Cloud className="w-3 h-3" />
-                    <span>Sincronizat</span>
-                  </div>
+        {/* User Profile Card & PIN 6122 Info */}
+        <div className="p-4 border-t border-neutral-150 space-y-2">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-neutral-50 border border-neutral-200/70">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-[#0f4a3c] text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                IV
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-neutral-900 truncate">
+                  Ionuț Vlăsceanu
+                </div>
+                <div className="text-[10px] text-emerald-700 flex items-center gap-1 font-semibold truncate">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                  <span>PIN 6122 Activ</span>
                 </div>
               </div>
-              <ShieldCheck className="w-4 h-4 text-[#0f4a3c] shrink-0" />
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                if (onOpenAuth) onOpenAuth();
-                onCloseMobile();
-              }}
-              className="w-full py-2.5 px-3 bg-[#0f4a3c] hover:bg-[#0c3b30] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-2xs"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Intră în Cont (Sincronizare)</span>
-            </button>
-          )}
+            </div>
+            {onLockAccess && (
+              <button
+                onClick={() => {
+                  onLockAccess();
+                  onCloseMobile();
+                }}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/60 transition-colors cursor-pointer"
+                title="Blochează accesul pe acest dispozitiv (PIN 6122)"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
       </aside>
     </>

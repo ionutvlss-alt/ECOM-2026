@@ -21,6 +21,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const statusChips: { id: CampaignStatus | 'all'; label: string }[] = [
     { id: 'all', label: 'Toate' },
+    { id: 'untested', label: 'Netestat' },
     { id: 'winner', label: 'Winner (Scalat)' },
     { id: 'testing', label: 'În testare' },
     { id: 'promising', label: 'Promițător' },

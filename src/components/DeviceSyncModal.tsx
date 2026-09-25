@@ -20,6 +20,7 @@ import { Product } from '../types/product';
 import { storageService } from '../services/storageService';
 import { PeerSyncManager, SyncPayload } from '../services/peerSyncService';
 import { cloudSyncService, CloudConfig } from '../services/cloudSyncService';
+import { normalizeProduct } from '../utils/productNormalizer';
 
 interface DeviceSyncModalProps {
   products: Product[];
@@ -127,10 +128,11 @@ export const DeviceSyncModal: React.FC<DeviceSyncModalProps> = ({
       (payload: SyncPayload) => {
         setP2pStatus('success');
         setIsReceiving(false);
+        const normalized = Array.isArray(payload.products) ? payload.products.map(normalizeProduct) : [];
         setStatusMessage(
-          `Sincronizare completă! S-au descărcat ${payload.products.length} produse.`
+          `Sincronizare completă! S-au descărcat ${normalized.length} produse.`
         );
-        onSyncSuccess(payload.products);
+        onSyncSuccess(normalized);
         setTimeout(() => {
           onClose();
         }, 1500);
@@ -184,7 +186,8 @@ export const DeviceSyncModal: React.FC<DeviceSyncModalProps> = ({
       onSyncSuccess(loaded);
       onClose();
     } catch (err: any) {
-      alert('Eroare import: ' + err.message);
+      setStatusMessage('Eroare import: ' + (err?.message || 'Fișier invalid'));
+      setP2pStatus('error');
     }
   };
 

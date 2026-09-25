@@ -13,6 +13,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
+import { safeFormatNumber } from '../utils/productNormalizer';
 
 interface DashboardOverviewProps {
   products: Product[];
@@ -31,20 +32,20 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
   // Calcule KPI din datele reale
   const totalProducts = products.length;
-  const winners = products.filter((p) => p.campaign?.status === 'winner');
-  const testingNow = products.filter((p) => (p.campaign?.status || 'testing') === 'testing');
-  const totalSpend = products.reduce((sum, p) => sum + (p.campaign?.adSpend || 0), 0);
-  const totalRevenue = products.reduce((sum, p) => sum + (p.campaign?.revenue || 0), 0);
+  const winners = products.filter((p) => p?.campaign?.status === 'winner');
+  const testingNow = products.filter((p) => (p?.campaign?.status || 'testing') === 'testing');
+  const totalSpend = products.reduce((sum, p) => sum + (Number(p?.campaign?.adSpend) || 0), 0);
+  const totalRevenue = products.reduce((sum, p) => sum + (Number(p?.campaign?.revenue) || 0), 0);
   const totalProfit = totalRevenue - totalSpend;
   const globalRoas = totalSpend > 0 ? (totalRevenue / totalSpend).toFixed(2) : '0';
 
   // Calcul platforma de top (Facebook vs TikTok)
-  const tiktokSpend = products.filter((p) => (p.campaign?.platform || '').toLowerCase().includes('tiktok')).reduce((s, p) => s + (p.campaign?.adSpend || 0), 0);
-  const tiktokRev = products.filter((p) => (p.campaign?.platform || '').toLowerCase().includes('tiktok')).reduce((s, p) => s + (p.campaign?.revenue || 0), 0);
+  const tiktokSpend = products.filter((p) => (p?.campaign?.platform || '').toLowerCase().includes('tiktok')).reduce((s, p) => s + (Number(p?.campaign?.adSpend) || 0), 0);
+  const tiktokRev = products.filter((p) => (p?.campaign?.platform || '').toLowerCase().includes('tiktok')).reduce((s, p) => s + (Number(p?.campaign?.revenue) || 0), 0);
   const tiktokRoas = tiktokSpend > 0 ? (tiktokRev / tiktokSpend).toFixed(2) : '0';
 
-  const fbSpend = products.filter((p) => (p.campaign?.platform || '').toLowerCase().includes('facebook') || (p.campaign?.platform || '').toLowerCase().includes('meta')).reduce((s, p) => s + (p.campaign?.adSpend || 0), 0);
-  const fbRev = products.filter((p) => (p.campaign?.platform || '').toLowerCase().includes('facebook') || (p.campaign?.platform || '').toLowerCase().includes('meta')).reduce((s, p) => s + (p.campaign?.revenue || 0), 0);
+  const fbSpend = products.filter((p) => (p?.campaign?.platform || '').toLowerCase().includes('facebook') || (p?.campaign?.platform || '').toLowerCase().includes('meta')).reduce((s, p) => s + (Number(p?.campaign?.adSpend) || 0), 0);
+  const fbRev = products.filter((p) => (p?.campaign?.platform || '').toLowerCase().includes('facebook') || (p?.campaign?.platform || '').toLowerCase().includes('meta')).reduce((s, p) => s + (Number(p?.campaign?.revenue) || 0), 0);
   const fbRoas = fbSpend > 0 ? (fbRev / fbSpend).toFixed(2) : '0';
 
   let topPlatformText = 'Adaugă campanii pe TikTok Ads și Facebook Ads pentru a compara performanța în timp real.';
@@ -156,7 +157,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               {globalRoas}x
             </div>
             <div className={`text-[11px] font-mono mt-0.5 ${totalProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-              {totalProfit >= 0 ? `+${totalProfit.toLocaleString('ro-RO')}` : totalProfit.toLocaleString('ro-RO')} RON profit net
+              {totalProfit >= 0 ? `+${safeFormatNumber(totalProfit)}` : safeFormatNumber(totalProfit)} RON profit net
             </div>
           </div>
         </div>
@@ -171,10 +172,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-2xl sm:text-3xl font-mono font-bold text-neutral-900 tabular-nums">
-              {totalSpend.toLocaleString('ro-RO')} RON
+              {safeFormatNumber(totalSpend)} RON
             </div>
             <div className="text-[11px] text-neutral-400 mt-0.5">
-              Venit: {totalRevenue.toLocaleString('ro-RO')} RON
+              Venit: {safeFormatNumber(totalRevenue)} RON
             </div>
           </div>
         </div>
@@ -295,7 +296,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                       {p.title}
                     </h4>
                     <span className="text-[10px] font-mono text-neutral-500">
-                      Spend: {p.campaign?.adSpend} RON · ROAS: {p.campaign?.roas || '0'}x
+                      Spend: {safeFormatNumber(p.campaign?.adSpend)} RON · ROAS: {Number(p.campaign?.roas) > 0 ? `${Number(p.campaign?.roas).toFixed(2)}x` : '—'}
                     </span>
                   </div>
                 </div>
