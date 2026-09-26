@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Database, Smartphone, Cloud, RefreshCw, Lock, ShieldCheck } from 'lucide-react';
+import { Menu, Database, Smartphone, Cloud, RefreshCw, Lock, ShieldCheck, Trash2 } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 import { ServerSyncState } from '../services/serverSyncService';
 
@@ -11,6 +11,7 @@ interface HeaderBarProps {
   onOpenAuth: () => void;
   onManualSync?: () => void;
   onLockAccess?: () => void;
+  onResetToZero?: () => void;
   isSyncing?: boolean;
   syncState?: ServerSyncState;
   isFirestoreConnected?: boolean;
@@ -37,6 +38,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   onOpenAuth,
   onManualSync,
   onLockAccess,
+  onResetToZero,
   isSyncing = false,
   syncState,
   currentUser,
@@ -91,6 +93,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           >
             <Lock className="w-3.5 h-3.5 text-neutral-500" />
             <span className="hidden lg:inline">PIN 6122</span>
+          </button>
+        )}
+
+        {/* Global Reset to 0 Products button */}
+        {onResetToZero && (
+          <button
+            onClick={onResetToZero}
+            className="p-1.5 sm:px-2.5 sm:py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100/90 rounded-xl flex items-center gap-1.5 border border-rose-200/80 transition-colors cursor-pointer shadow-2xs"
+            title="Resetează la 0 produse pe toate dispozitivele (curăță definitiv mock-urile)"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span className="hidden xl:inline">Reset la 0</span>
           </button>
         )}
 

@@ -1,0 +1,18 @@
+{
+  "products": [],
+  "suppliers": [],
+  "categories": [
+    "Gadgets & Tech",
+    "Cosmetice & Beauty",
+    "Casă & Curățenie",
+    "Bucătărie & Electro",
+    "Fitness & Sport",
+    "Auto & Accesorii",
+    "Îmbrăcăminte & Modă",
+    "Jucării & Copii",
+    "Animale de companie",
+    "Altele"
+  ],
+  "lastUpdated": "2026-09-26T12:06:00.000Z",
+  "version": 10
+}

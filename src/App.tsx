@@ -83,37 +83,25 @@ export default function App() {
       if (serverData) {
         setLastKnownVersion(serverData.version);
 
-        if (serverData.products && serverData.products.length > 0) {
-          const mergedMap = new Map<string, Product>();
-          serverData.products.forEach((p) => {
-            if (p && p.id) mergedMap.set(p.id, normalizeProduct(p));
-          });
+        if (Array.isArray(serverData.products)) {
+          const clean = serverData.products
+            .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
+            .map(normalizeProduct);
 
-          // Păstrăm produsele locale noi dacă existau
-          products.forEach((p) => {
-            if (p && p.id && !mergedMap.has(p.id)) {
-              mergedMap.set(p.id, normalizeProduct(p));
-            }
-          });
-
-          const finalList = Array.from(mergedMap.values());
-          setProducts(finalList);
-          storageService.saveProducts(finalList);
-
-          if (serverData.suppliers && serverData.suppliers.length > 0) {
-            setSuppliers(serverData.suppliers);
-            storageService.saveSuppliers(serverData.suppliers);
+          // Păstrăm produsele doar dacă există
+          if (clean.length > 0) {
+            setProducts(clean);
+            storageService.saveProducts(clean);
           }
-          if (serverData.categories && serverData.categories.length > 0) {
-            setCategories(serverData.categories);
-            storageService.saveCategories(serverData.categories);
-          }
+        }
 
-          if (finalList.length > serverData.products.length) {
-            await serverSyncService.syncWithServer(finalList, serverData.suppliers || suppliers, serverData.categories || categories);
-          }
-        } else if (products.length > 0 || forcePushLocal) {
-          await serverSyncService.syncWithServer(products, suppliers, categories);
+        if (Array.isArray(serverData.suppliers) && serverData.suppliers.length > 0) {
+          setSuppliers(serverData.suppliers);
+          storageService.saveSuppliers(serverData.suppliers);
+        }
+        if (Array.isArray(serverData.categories) && serverData.categories.length > 0) {
+          setCategories(serverData.categories);
+          storageService.saveCategories(serverData.categories);
         }
       }
     } catch (err) {
@@ -125,6 +113,24 @@ export default function App() {
 
   const handleManualSync = async () => {
     await performFullServerSync(true);
+  };
+
+  // Resetare globală la 0 produse (Firestore + Server + Local)
+  const handleGlobalResetToZero = async () => {
+    if (!window.confirm('Ești sigur că vrei să resetezi lista la 0 produse pe TOATE dispozitivele?')) {
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      await firestoreSyncService.clearAllProductsFromFirestore();
+      await serverSyncService.syncWithServer([], suppliers, categories);
+      storageService.clearAllProducts();
+      setProducts([]);
+    } catch (err) {
+      console.error('Eroare resetare la 0:', err);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // Blochează ecranul (solicită PIN 6122 pentru deblocare)
@@ -143,13 +149,15 @@ export default function App() {
   useEffect(() => {
     if (!isPinUnlocked) return;
 
-    // Încărcare inițială a datelor locale pe Firestore dacă baza din cloud e goală
-    firestoreSyncService.seedInitialDataIfEmpty(products, suppliers, categories);
+    firestoreSyncService.seedInitialCategoriesIfEmpty(categories);
 
+    // Ascultare în timp real a colecției de produse - actualizare instantanee pe toate dispozitivele
     const unsubProducts = firestoreSyncService.subscribeProducts((firestoreProducts) => {
-      if (firestoreProducts && firestoreProducts.length > 0) {
-        setProducts(firestoreProducts);
-      }
+      const clean = (firestoreProducts || [])
+        .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
+        .map(normalizeProduct);
+      setProducts(clean);
+      storageService.saveProducts(clean);
     });
 
     const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
@@ -174,15 +182,12 @@ export default function App() {
   // Sincronizare la pornire cu IndexedDB și Serverul Cloud
   useEffect(() => {
     storageService.syncWithIndexedDB().then((res) => {
-      if (res) {
-        if (res.products && res.products.length > products.length) {
-          setProducts(res.products.map(normalizeProduct));
-        }
-        if (res.categories && res.categories.length > categories.length) {
-          setCategories(res.categories);
-        }
-        if (res.suppliers && res.suppliers.length > 0) {
-          setSuppliers(res.suppliers);
+      if (res && Array.isArray(res.products)) {
+        const clean = res.products
+          .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
+          .map(normalizeProduct);
+        if (clean.length > 0) {
+          setProducts(clean);
         }
       }
     }).finally(() => {
@@ -546,6 +551,7 @@ export default function App() {
           onOpenAuth={() => setIsAuthOpen(true)}
           onManualSync={handleManualSync}
           onLockAccess={handleLockAccess}
+          onResetToZero={handleGlobalResetToZero}
           isSyncing={isSyncing}
           syncState={serverSyncState}
           currentUser={currentUser}

@@ -186,37 +186,31 @@ export const firestoreSyncService = {
     }
   },
 
-  // 9. Încărcare inițială a datelor locale pe Firestore dacă baza de date a fost proaspăt creată
-  seedInitialDataIfEmpty: async (
-    localProducts: Product[],
-    localSuppliers: Supplier[],
-    localCategories: string[]
-  ) => {
+  // 9. Asigurare inițializare categorii dacă este nou Firestore
+  seedInitialCategoriesIfEmpty: async (defaultCategories: string[]) => {
+    try {
+      const catDoc = doc(db, 'settings', 'categories');
+      await setDoc(catDoc, { categories: defaultCategories, updatedAt: new Date().toISOString() }, { merge: true });
+    } catch (err) {
+      console.warn('Verificare seed categorii Firestore:', err);
+    }
+  },
+
+  // 10. Ștergere toate produsele din Firestore pentru a reseta baza la exact 0 produse sincronizate
+  clearAllProductsFromFirestore: async (): Promise<boolean> => {
     try {
       const snap = await getDocs(collection(db, 'products'));
-      if (snap.empty && localProducts.length > 0) {
-        console.log(`Baza Firestore este goală. Se încarcă ${localProducts.length} produse existente...`);
-        const batch = writeBatch(db);
-
-        localProducts.forEach((p) => {
-          const normalized = normalizeProduct(p);
-          const pRef = doc(db, 'products', normalized.id);
-          batch.set(pRef, normalized);
-        });
-
-        localSuppliers.forEach((s) => {
-          const sRef = doc(db, 'suppliers', s.id);
-          batch.set(sRef, s);
-        });
-
-        const catRef = doc(db, 'settings', 'categories');
-        batch.set(catRef, { categories: localCategories, updatedAt: new Date().toISOString() });
-
-        await batch.commit();
-        console.log('Datele inițiale au fost încărcate cu succes în Google Cloud Firestore!');
-      }
-    } catch (err) {
-      console.warn('Verificare seed Firestore:', err);
+      if (snap.empty) return true;
+      const batch = writeBatch(db);
+      snap.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+      console.log('Baza Firestore a fost resetată la 0 produse.');
+      return true;
+    } catch (err: any) {
+      console.error('Eroare la ștergerea tuturor produselor din Firestore:', err);
+      return false;
     }
   }
 };

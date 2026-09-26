@@ -77,6 +77,21 @@ export const indexedDBService = {
     }
   },
 
+  clearProducts: async (): Promise<boolean> => {
+    try {
+      const db = await getDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_PRODUCTS, 'readwrite');
+        const store = tx.objectStore(STORE_PRODUCTS);
+        store.clear();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch {
+      return false;
+    }
+  },
+
   getCategories: async (): Promise<string[]> => {
     try {
       const db = await getDB();

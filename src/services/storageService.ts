@@ -17,7 +17,45 @@ const LEGACY_PRODUCT_KEYS = [
   'ecom_products_backup',
 ];
 
+const CLEAN_SLATE_KEY = 'review_tracker_wiped_zero_v7';
+
+// Auto-purge toate datele demo vechi de pe orice dispozitiv (telefon, pc, laptop)
+function ensureCleanSlate() {
+  if (typeof window === 'undefined') return;
+  try {
+    const isWiped = localStorage.getItem(CLEAN_SLATE_KEY);
+    if (!isWiped) {
+      LEGACY_PRODUCT_KEYS.forEach((key) => {
+        try { localStorage.removeItem(key); } catch {}
+      });
+      try { localStorage.removeItem(PRODUCTS_KEY); } catch {}
+      try { sessionStorage.removeItem(PRODUCTS_KEY); } catch {}
+      indexedDBService.clearProducts().catch(() => {});
+      localStorage.setItem(CLEAN_SLATE_KEY, 'true');
+    }
+  } catch {}
+}
+
+ensureCleanSlate();
+
+// Lista ID-urilor vechi de test / mock pentru eliminare completă
+const KNOWN_MOCK_IDS = new Set(['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2']);
+
 export const storageService = {
+  // Resetare manuală la 0 produse (pe dispozitivul curent)
+  clearAllProducts: (): Product[] => {
+    try {
+      localStorage.removeItem(PRODUCTS_KEY);
+      sessionStorage.removeItem(PRODUCTS_KEY);
+      LEGACY_PRODUCT_KEYS.forEach((k) => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+      indexedDBService.clearProducts().catch(() => {});
+      return [];
+    } catch {
+      return [];
+    }
+  },
   // --- Categorii ---
   getCategories: (): string[] => {
     try {
@@ -138,33 +176,15 @@ export const storageService = {
           const parsed = JSON.parse(storedV3);
           if (Array.isArray(parsed)) {
             parsed.forEach((p) => {
-              if (p && p.id) foundProductsMap.set(p.id, p);
+              if (p && p.id && !KNOWN_MOCK_IDS.has(String(p.id)) && !String(p.id).startsWith('mock-')) {
+                foundProductsMap.set(p.id, p);
+              }
             });
           }
         } catch (e) {
           console.warn('Eroare parsare v3:', e);
         }
       }
-
-      // Verificăm și cheile vechi pentru a recupera orice produs pierdut la trecerea de versiune
-      LEGACY_PRODUCT_KEYS.forEach((key) => {
-        if (key === PRODUCTS_KEY) return;
-        try {
-          const legacyData = localStorage.getItem(key);
-          if (legacyData) {
-            const parsed = JSON.parse(legacyData);
-            if (Array.isArray(parsed)) {
-              parsed.forEach((p) => {
-                if (p && p.id && !foundProductsMap.has(p.id)) {
-                  foundProductsMap.set(p.id, p);
-                }
-              });
-            }
-          }
-        } catch {
-          // Ignoră erorile din chei vechi
-        }
-      });
 
       // Verificăm și sessionStorage ca protecție suplimentară
       try {
@@ -173,7 +193,7 @@ export const storageService = {
           const parsed = JSON.parse(sessionData);
           if (Array.isArray(parsed)) {
             parsed.forEach((p) => {
-              if (p && p.id && !foundProductsMap.has(p.id)) {
+              if (p && p.id && !KNOWN_MOCK_IDS.has(String(p.id)) && !foundProductsMap.has(p.id)) {
                 foundProductsMap.set(p.id, p);
               }
             });
@@ -185,10 +205,11 @@ export const storageService = {
         return Array.from(foundProductsMap.values()).map(normalizeProduct);
       }
 
-      return INITIAL_PRODUCTS.map(normalizeProduct);
+      // NICIUN produs demo sau mock - starea curată este exact 0 produse
+      return [];
     } catch (err) {
       console.error('Eroare la citirea produselor:', err);
-      return INITIAL_PRODUCTS.map(normalizeProduct);
+      return [];
     }
   },
 
@@ -209,6 +230,7 @@ export const storageService = {
       const mergedMap = new Map<string, Product>();
       localProducts.forEach((p) => mergedMap.set(p.id, normalizeProduct(p)));
       idbProducts.forEach((p) => {
+        if (!p || !p.id || KNOWN_MOCK_IDS.has(String(p.id)) || String(p.id).startsWith('mock-')) return;
         const normalized = normalizeProduct(p);
         if (!mergedMap.has(normalized.id)) {
           mergedMap.set(normalized.id, normalized);
