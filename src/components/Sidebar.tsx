@@ -14,13 +14,14 @@ import {
   LogIn,
   ShieldCheck,
   Building2,
-  Lock
+  Lock,
+  Tv
 } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
 interface SidebarProps {
-  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'reports';
-  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'reports') => void;
+  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports';
+  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports') => void;
   productsCount: number;
   suppliersCount?: number;
   winnersCount: number;
@@ -194,8 +195,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {/* Section: MEDIA */}
           <div className="space-y-1">
             <div className="text-[11px] font-bold tracking-wider text-neutral-400 uppercase px-3 py-1.5">
-              MEDIA
+              MEDIA & CREATIVURI
             </div>
+
+            <button
+              onClick={() => handleNav('ads-gallery')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                currentTab === 'ads-gallery'
+                  ? 'bg-[#eaf3ee] text-[#134e48] font-semibold'
+                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Tv className={`w-4 h-4 ${currentTab === 'ads-gallery' ? 'text-[#134e48]' : 'text-neutral-500'}`} />
+                <span>Reclame & Preview</span>
+              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-[#0f4a3c]">
+                NOU
+              </span>
+            </button>
 
             <button
               onClick={() => handleNav('gallery')}

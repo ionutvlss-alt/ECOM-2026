@@ -27,6 +27,7 @@ const TAB_TITLES: Record<string, string> = {
   suppliers: 'Contacte Furnizori',
   categories: 'Categorii Produse',
   gallery: 'Galerie Foto',
+  'ads-gallery': 'Galerie Reclame Ads (TikTok & Meta)',
   reports: 'Rapoarte & ROAS',
 };
 

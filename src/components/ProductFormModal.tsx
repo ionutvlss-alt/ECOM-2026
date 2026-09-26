@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Product, CampaignResults, CampaignStatus, ProductChecklist, ListingStatus } from '../types/product';
+import { Product, CampaignResults, CampaignStatus, ProductChecklist, ListingStatus, AdLink } from '../types/product';
 import { Supplier } from '../types/supplier';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
-import { CHECKLIST_ITEMS_CONFIG, calculateChecklistStats } from '../utils/productNormalizer';
+import { CHECKLIST_ITEMS_CONFIG, calculateChecklistStats, detectAdPlatform } from '../utils/productNormalizer';
 import {
   X,
   Upload,
@@ -23,9 +23,14 @@ import {
   ListChecks,
   Check,
   CheckCircle2,
-  Clock
+  Clock,
+  Video,
+  Film,
+  Eye,
+  Play
 } from 'lucide-react';
 import { compressImageFile, compressBase64Image } from '../utils/imageCompressor';
+import { AdPreviewCard } from './AdPreviewCard';
 
 interface ProductFormModalProps {
   initialProduct?: Product | null;
@@ -101,6 +106,67 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [campaignNotes, setCampaignNotes] = useState(initialProduct?.campaign?.notes || '');
   const [cpc, setCpc] = useState<number | undefined>(initialProduct?.campaign?.cpc);
   const [ctr, setCtr] = useState<number | undefined>(initialProduct?.campaign?.ctr);
+
+  // Secțiune link-uri cu reclame: 3 sloturi STAS implicite + adăugare dinamică
+  const [adLinkSlots, setAdLinkSlots] = useState<{
+    url: string;
+    label: string;
+    notes?: string;
+  }[]>(() => {
+    const existing = initialProduct?.adLinks || [];
+    // Dacă existau link-uri salvate anterior
+    if (existing.length > 0) {
+      const mapped = existing.map((l) => ({
+        url: l.url || '',
+        label: l.label || '',
+        notes: l.notes || '',
+      }));
+      // Asigurăm minim 3 sloturi STAS
+      while (mapped.length < 3) {
+        mapped.push({ url: '', label: '', notes: '' });
+      }
+      return mapped;
+    }
+    // Dacă exista doar vechiul campaignUrl
+    if (initialProduct?.campaign?.campaignUrl) {
+      return [
+        { url: initialProduct.campaign.campaignUrl, label: 'Reclamă Principală', notes: '' },
+        { url: '', label: '', notes: '' },
+        { url: '', label: '', notes: '' },
+      ];
+    }
+    // STAS 3 sloturi libere
+    return [
+      { url: '', label: '', notes: '' },
+      { url: '', label: '', notes: '' },
+      { url: '', label: '', notes: '' },
+    ];
+  });
+
+  const handleUpdateAdSlot = (index: number, field: 'url' | 'label' | 'notes', value: string) => {
+    setAdLinkSlots((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+      return copy;
+    });
+  };
+
+  const handleAddExtraAdSlot = () => {
+    setAdLinkSlots((prev) => [...prev, { url: '', label: '', notes: '' }]);
+  };
+
+  const handleRemoveAdSlot = (index: number) => {
+    setAdLinkSlots((prev) => {
+      // Dacă avem mai mult de 3 sloturi, putem elimina slotul
+      if (prev.length > 3) {
+        return prev.filter((_, i) => i !== index);
+      }
+      // Dacă avem 3 sloturi stas, doar îi golim valorile
+      const copy = [...prev];
+      copy[index] = { url: '', label: '', notes: '' };
+      return copy;
+    });
+  };
 
   // Puncte forte & slabe
   const [pros, setPros] = useState<string[]>(
@@ -199,6 +265,23 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     // Determinare platformă finală
     const finalPlatform = platform === 'custom' && customPlatform.trim() ? customPlatform.trim() : platform;
 
+    // Construire listă de link-uri reclame valide
+    const validAdLinks: AdLink[] = adLinkSlots
+      .filter((slot) => Boolean(slot.url && slot.url.trim()))
+      .map((slot, idx) => ({
+        id: `ad_link_${idx}_${Date.now()}`,
+        url: slot.url.trim(),
+        label: slot.label.trim() || `Reclamă #${idx + 1}`,
+        platform: detectAdPlatform(slot.url.trim()),
+        notes: slot.notes?.trim() || undefined,
+        addedAt: new Date().toISOString().slice(0, 10),
+      }));
+
+    // Dacă utilizatorul a introdus link-uri în sloturi, primul devine și linkul principal al campaniei
+    const effectiveCampaignUrl = validAdLinks.length > 0 
+      ? validAdLinks[0].url 
+      : (campaignUrl.trim() || undefined);
+
     const campaignResults: CampaignResults = {
       platform: finalPlatform,
       status: campaignStatus,
@@ -209,7 +292,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       cpa: calculatedCpa,
       cpc: cpc ? Number(cpc) : undefined,
       ctr: ctr ? Number(ctr) : undefined,
-      campaignUrl: campaignUrl.trim() || undefined,
+      campaignUrl: effectiveCampaignUrl,
       notes: campaignNotes.trim() || undefined,
       testedAt: initialProduct?.campaign?.testedAt || new Date().toISOString().slice(0, 10),
     };
@@ -235,6 +318,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
       // Partea de ADS (rămâne ultima)
       campaign: campaignResults,
+      adLinks: validAdLinks,
       detailedNotes: detailedNotes.trim() || undefined,
       pros: pros.filter((p) => p.trim().length > 0),
       cons: cons.filter((c) => c.trim().length > 0),
@@ -954,33 +1038,130 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             </div>
 
-            {/* Link Campanie & Concluzii / Unghi de vânzare */}
-            <div className="space-y-2 pt-2 border-t border-emerald-200/60">
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                  Link campanie / Video creativ (TikTok sau Facebook Ads Library):
-                </label>
-                <input
-                  type="url"
-                  value={campaignUrl}
-                  onChange={(e) => setCampaignUrl(e.target.value)}
-                  placeholder="https://tiktok.com/@... sau https://facebook.com/ads/library/..."
-                  className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
-                />
+            {/* Secțiune Specială: Link-uri cu Reclame (3 Sloturi STAS + Adăugare opțională) */}
+            <div className="pt-3 border-t border-emerald-200/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                    <Video className="w-4 h-4 text-[#0f4a3c]" />
+                    <span>Link-uri Reclame & Creativuri Video</span>
+                  </label>
+                  <p className="text-[11px] text-neutral-500 mt-0.5">
+                    3 sloturi STAS libere pentru link-uri TikTok, Facebook Ads Library, YouTube sau Instagram (plus adăugare opțională).
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddExtraAdSlot}
+                  className="px-2.5 py-1 text-[11px] font-semibold text-[#0f4a3c] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors flex items-center gap-1 border border-emerald-200/80 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Adaugă slot ({adLinkSlots.length + 1})</span>
+                </button>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                  Concluzii campanie & Creativ câștigător:
-                </label>
-                <textarea
-                  rows={2}
-                  value={campaignNotes}
-                  onChange={(e) => setCampaignNotes(e.target.value)}
-                  placeholder="Ex: Hook-ul din primele 3 secunde cu demonstrația a adus 70% din comenzi. Audiența Broad a funcționat mai bine decât targetarea pe interese."
-                  className="w-full bg-white border border-neutral-200 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] resize-none"
-                />
+              {/* Sloturi Reclame */}
+              <div className="space-y-3">
+                {adLinkSlots.map((slot, index) => {
+                  const detected = slot.url ? detectAdPlatform(slot.url) : null;
+                  const isStas = index < 3;
+
+                  return (
+                    <div
+                      key={index}
+                      className="p-3 bg-white/90 border border-emerald-150 rounded-xl shadow-2xs space-y-2"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-[#0f4a3c] text-white flex items-center justify-center font-bold text-[10px]">
+                            {index + 1}
+                          </span>
+                          <span className="font-semibold text-neutral-800">
+                            {isStas ? `Slot STAS #${index + 1}` : `Slot Suplimentar #${index + 1}`}
+                          </span>
+                          {detected && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              {detected}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Buton ștergere slot */}
+                        {(adLinkSlots.length > 3 || slot.url) && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAdSlot(index)}
+                            className="text-[11px] text-neutral-400 hover:text-rose-600 transition-colors cursor-pointer flex items-center gap-1"
+                            title={isStas ? 'Golește acest slot' : 'Șterge acest slot'}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>{isStas ? 'Golește' : 'Șterge slot'}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        {/* Denumire / Etichetă Slot */}
+                        <div className="sm:col-span-4">
+                          <input
+                            type="text"
+                            value={slot.label}
+                            onChange={(e) => handleUpdateAdSlot(index, 'label', e.target.value)}
+                            placeholder={index === 0 ? "ex: Video Hook Problemă" : index === 1 ? "ex: Video UGC Testimonial" : "ex: Reclamă Meta Câștigătoare"}
+                            className="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                          />
+                        </div>
+
+                        {/* URL Link Reclamă */}
+                        <div className="sm:col-span-8">
+                          <input
+                            type="url"
+                            value={slot.url}
+                            onChange={(e) => handleUpdateAdSlot(index, 'url', e.target.value)}
+                            placeholder="https://tiktok.com/@... sau https://facebook.com/ads/library/..."
+                            className="w-full bg-white border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-mono text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Notă scurtă opțională despre reclama din acest slot */}
+                      <input
+                        type="text"
+                        value={slot.notes || ''}
+                        onChange={(e) => handleUpdateAdSlot(index, 'notes', e.target.value)}
+                        placeholder="Notă opțională (ex: Creativul cu unghi de ofertă 1+1 Gratis, ROAS 3.2x)"
+                        className="w-full bg-neutral-50/80 border border-neutral-200/80 rounded-lg px-2.5 py-1 text-[11px] text-neutral-700 focus:outline-none focus:border-[#0f4a3c]"
+                      />
+
+                      {/* Mini Preview rapid dacă este introdus URL */}
+                      {slot.url && (
+                        <div className="pt-1">
+                          <AdPreviewCard
+                            url={slot.url}
+                            label={slot.label || `Reclamă #${index + 1}`}
+                            compact={true}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Concluzii campanie & Creativ câștigător */}
+            <div className="pt-2 border-t border-emerald-200/60">
+              <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                Concluzii campanie & Creativ câștigător:
+              </label>
+              <textarea
+                rows={2}
+                value={campaignNotes}
+                onChange={(e) => setCampaignNotes(e.target.value)}
+                placeholder="Ex: Hook-ul din primele 3 secunde cu demonstrația a adus 70% din comenzi. Audiența Broad a funcționat mai bine decât targetarea pe interese."
+                className="w-full bg-white border border-neutral-200 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] resize-none"
+              />
             </div>
           </div>
 

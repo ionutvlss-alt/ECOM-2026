@@ -36,6 +36,15 @@ export interface ProductChecklist {
 
 export type ListingStatus = 'planned' | 'in_progress' | 'live';
 
+export interface AdLink {
+  id: string;
+  url: string;
+  platform?: string; // ex: 'TikTok', 'Facebook Ads', 'Instagram', 'YouTube', 'Altele'
+  label?: string; // ex: 'Video Viral 1', 'Creativ UGC', 'Reclamă Câștigătoare'
+  notes?: string;
+  addedAt?: string;
+}
+
 export interface Product {
   id: string;
   title: string;
@@ -59,6 +68,9 @@ export interface Product {
   
   // Platformă & Rezultate Campanie Ads (Facebook, TikTok, etc.)
   campaign: CampaignResults;
+
+  // Secțiune link-uri cu reclame (3 sloturi stas + opțiune de adăugare nelimitată)
+  adLinks?: AdLink[];
 
   // Detalii suplimentare & Notițe
   detailedNotes?: string;

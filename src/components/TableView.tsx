@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, CampaignStatus } from '../types/product';
-import { Edit3, Trash2, Megaphone, Globe, ListChecks } from 'lucide-react';
+import { Edit3, Trash2, Megaphone, Globe, ListChecks, Video } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber, calculateChecklistStats } from '../utils/productNormalizer';
 
@@ -138,9 +138,17 @@ export const TableView: React.FC<TableViewProps> = ({
 
                   {/* Platform */}
                   <td className="py-3 px-4">
-                    <span className="font-bold text-neutral-900 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-full text-[11px]">
-                      {c?.platform || 'Facebook Ads'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-neutral-900 bg-neutral-100 border border-neutral-200 px-2 py-0.5 rounded-full text-[11px]">
+                        {c?.platform || 'Facebook Ads'}
+                      </span>
+                      {product.adLinks && product.adLinks.length > 0 && (
+                        <span className="font-mono text-[10px] font-bold text-[#0f4a3c] bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded flex items-center gap-1" title={`${product.adLinks.length} reclame video atașate`}>
+                          <Video className="w-3 h-3 text-[#0f4a3c]" />
+                          <span>{product.adLinks.length}</span>
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Status Dropdown */}

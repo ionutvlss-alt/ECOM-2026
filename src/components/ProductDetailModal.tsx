@@ -19,10 +19,12 @@ import {
   Globe,
   ListChecks,
   Store,
-  Compass
+  Compass,
+  Video
 } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber, calculateChecklistStats, CHECKLIST_ITEMS_CONFIG } from '../utils/productNormalizer';
+import { AdPreviewCard } from './AdPreviewCard';
 
 interface ProductDetailModalProps {
   product: Product;
@@ -592,19 +594,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   </div>
                 )}
 
-                {/* Link Reclamă / Creativ Video */}
-                {campaign.campaignUrl && (
-                  <div className="pt-2">
-                    <a
-                      href={campaign.campaignUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Deschide reclama / creativul video testat pe {campaign.platform}</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                {/* Secțiune Link-uri Reclame & Creativuri cu Preview Video */}
+                {((product.adLinks && product.adLinks.length > 0) || campaign.campaignUrl) && (
+                  <div className="pt-3 border-t border-emerald-200/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-800 flex items-center gap-1.5">
+                        <Video className="w-4 h-4 text-[#0f4a3c]" />
+                        <span>Reclame & Creativuri Video Atasate ({product.adLinks?.length || 1})</span>
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {product.adLinks && product.adLinks.length > 0 ? (
+                        product.adLinks.map((ad, idx) => (
+                          <AdPreviewCard
+                            key={ad.id || idx}
+                            url={ad.url}
+                            label={ad.label || `Reclamă #${idx + 1}`}
+                            notes={ad.notes}
+                          />
+                        ))
+                      ) : campaign.campaignUrl ? (
+                        <AdPreviewCard
+                          url={campaign.campaignUrl}
+                          label="Reclamă Principală"
+                        />
+                      ) : null}
+                    </div>
                   </div>
                 )}
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, CampaignStatus } from '../types/product';
-import { Globe, ListChecks } from 'lucide-react';
+import { Globe, ListChecks, Video } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber, calculateChecklistStats } from '../utils/productNormalizer';
 
@@ -112,17 +112,28 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                       {/* Site Destinație & Progres Checklist Lansare */}
                       {(() => {
                         const chk = calculateChecklistStats(product?.checklist);
-                        if (!product.targetSite && chk.completed === 0) return null;
+                        const hasAds = product.adLinks && product.adLinks.length > 0;
+                        if (!product.targetSite && chk.completed === 0 && !hasAds) return null;
                         return (
                           <div className="flex items-center justify-between text-[10px] gap-1 px-2 py-1 bg-blue-50/80 rounded-lg border border-blue-200/60">
                             <span className="font-semibold text-blue-900 truncate flex items-center gap-1 min-w-0">
                               <Globe className="w-3 h-3 text-blue-600 shrink-0" />
                               <span className="truncate">{product.targetSite || 'Site planificat'}</span>
                             </span>
-                            <span className="font-mono text-[9px] font-bold text-blue-700 shrink-0 flex items-center gap-0.5 bg-white/80 px-1 py-0.2 rounded border border-blue-200/50">
-                              <ListChecks className="w-2.5 h-2.5 text-blue-600" />
-                              <span>{chk.completed}/{chk.total}</span>
-                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {hasAds && (
+                                <span className="font-mono text-[9px] font-bold text-[#0f4a3c] bg-emerald-50 border border-emerald-200 px-1 py-0.2 rounded flex items-center gap-0.5" title={`${product.adLinks!.length} reclame atașate`}>
+                                  <Video className="w-2.5 h-2.5 text-[#0f4a3c]" />
+                                  <span>{product.adLinks!.length}</span>
+                                </span>
+                              )}
+                              {chk.completed > 0 && (
+                                <span className="font-mono text-[9px] font-bold text-blue-700 flex items-center gap-0.5 bg-white/80 px-1 py-0.2 rounded border border-blue-200/50">
+                                  <ListChecks className="w-2.5 h-2.5 text-blue-600" />
+                                  <span>{chk.completed}/{chk.total}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
                       })()}

@@ -9,7 +9,8 @@ import {
   Play,
   CheckCircle2,
   Filter,
-  Sparkles
+  Sparkles,
+  Video
 } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber } from '../utils/productNormalizer';
@@ -317,8 +318,33 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                 </div>
 
                 {/* Footer Link & Action */}
-                <div className="pt-3 border-t border-neutral-100 flex items-center justify-between text-xs">
-                  {c.campaignUrl ? (
+                <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  {product.adLinks && product.adLinks.length > 0 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                      <span className="text-[11px] font-bold text-neutral-500 flex items-center gap-1">
+                        <Video className="w-3.5 h-3.5 text-[#0f4a3c]" />
+                        <span>Reclame ({product.adLinks.length}):</span>
+                      </span>
+                      {product.adLinks.slice(0, 3).map((ad, idx) => (
+                        <a
+                          key={ad.id || idx}
+                          href={ad.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-[#0f4a3c] font-semibold text-[11px] flex items-center gap-1 transition-colors border border-emerald-200"
+                        >
+                          <Play className="w-2.5 h-2.5 fill-current" />
+                          <span>{ad.label || `Reclamă #${idx + 1}`}</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ))}
+                      {product.adLinks.length > 3 && (
+                        <span className="text-[10px] text-neutral-400 font-semibold">
+                          +{product.adLinks.length - 3} mai multe
+                        </span>
+                      )}
+                    </div>
+                  ) : c.campaignUrl ? (
                     <a
                       href={c.campaignUrl}
                       target="_blank"
@@ -334,7 +360,7 @@ export const CampaignsView: React.FC<CampaignsViewProps> = ({
                     <span className="text-neutral-400 italic text-[11px]">Fără link video/reclamă</span>
                   )}
 
-                  <span className="text-[11px] text-neutral-400 font-mono">
+                  <span className="text-[11px] text-neutral-400 font-mono shrink-0">
                     Testat pe {c.testedAt || product.createdAt}
                   </span>
                 </div>

@@ -1,4 +1,16 @@
-import { Product, CampaignStatus, ProductChecklist, ListingStatus } from '../types/product';
+import { Product, CampaignStatus, ProductChecklist, ListingStatus, AdLink } from '../types/product';
+
+export function detectAdPlatform(url: string): string {
+  if (!url) return 'Altele';
+  const lower = url.toLowerCase();
+  if (lower.includes('tiktok.com')) return 'TikTok';
+  if (lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('meta.com')) return 'Facebook Ads';
+  if (lower.includes('instagram.com')) return 'Instagram';
+  if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'YouTube';
+  if (lower.includes('google.com') || lower.includes('adstransparency.google.com')) return 'Google Ads';
+  if (lower.includes('pinterest.com')) return 'Pinterest';
+  return 'Web / Video';
+}
 
 export function normalizeProduct(raw: any): Product {
   if (!raw || typeof raw !== 'object') {
@@ -97,6 +109,36 @@ export function normalizeProduct(raw: any): Product {
       notes: rawCampaign.notes ? String(rawCampaign.notes) : undefined,
       testedAt: rawCampaign.testedAt ? String(rawCampaign.testedAt) : undefined,
     },
+    adLinks: Array.isArray(raw.adLinks)
+      ? raw.adLinks
+          .filter((link: any) => link && (typeof link === 'string' || (typeof link === 'object' && link.url)))
+          .map((link: any, idx: number): AdLink => {
+            if (typeof link === 'string') {
+              return {
+                id: `ad_link_${idx}_${Date.now()}`,
+                url: link.trim(),
+                label: `Reclamă #${idx + 1}`,
+                platform: detectAdPlatform(link),
+              };
+            }
+            return {
+              id: String(link.id || `ad_link_${idx}_${Date.now()}`),
+              url: String(link.url || '').trim(),
+              label: link.label ? String(link.label).trim() : `Reclamă #${idx + 1}`,
+              platform: link.platform ? String(link.platform) : detectAdPlatform(link.url || ''),
+              notes: link.notes ? String(link.notes) : undefined,
+              addedAt: link.addedAt ? String(link.addedAt) : undefined,
+            };
+          })
+          .filter((item: AdLink) => Boolean(item.url))
+      : (rawCampaign.campaignUrl
+          ? [{
+              id: 'initial_ad_link',
+              url: String(rawCampaign.campaignUrl),
+              label: 'Reclamă Principală',
+              platform: detectAdPlatform(rawCampaign.campaignUrl),
+            }]
+          : []),
     detailedNotes: raw.detailedNotes ? String(raw.detailedNotes) : undefined,
     pros: Array.isArray(raw.pros) ? raw.pros.map(String) : [],
     cons: Array.isArray(raw.cons) ? raw.cons.map(String) : [],

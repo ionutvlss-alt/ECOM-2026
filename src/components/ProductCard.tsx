@@ -1,6 +1,6 @@
 import React from 'react';
 import { Product, CampaignStatus } from '../types/product';
-import { Bookmark, Edit3, Trash2, TrendingUp, Megaphone, Globe, ListChecks } from 'lucide-react';
+import { Bookmark, Edit3, Trash2, TrendingUp, Megaphone, Globe, ListChecks, Video } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber, calculateChecklistStats } from '../utils/productNormalizer';
 
@@ -112,16 +112,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </h3>
 
           {/* Site Destinație & Progres Checklist Lansare */}
-          {(product.targetSite || checklistStats.completed > 0) && (
+          {(product.targetSite || checklistStats.completed > 0 || (product.adLinks && product.adLinks.length > 0)) && (
             <div className="flex items-center justify-between text-[11px] gap-2 py-1 px-2.5 bg-blue-50/70 rounded-xl border border-blue-200/60">
               <span className="font-semibold text-blue-900 truncate flex items-center gap-1.5 min-w-0">
                 <Globe className="w-3 h-3 text-blue-600 shrink-0" />
                 <span className="truncate">{product.targetSite || 'Site planificat'}</span>
               </span>
-              <span className="font-mono text-[10px] font-bold text-blue-700 shrink-0 flex items-center gap-1 bg-white/80 px-1.5 py-0.5 rounded-md border border-blue-200/50">
-                <ListChecks className="w-3 h-3 text-blue-600" />
-                <span>{checklistStats.completed}/{checklistStats.total}</span>
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {product.adLinks && product.adLinks.length > 0 && (
+                  <span className="font-mono text-[10px] font-bold text-[#0f4a3c] flex items-center gap-1 bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-200" title={`${product.adLinks.length} reclame atașate`}>
+                    <Video className="w-3 h-3 text-[#0f4a3c]" />
+                    <span>{product.adLinks.length}</span>
+                  </span>
+                )}
+                {checklistStats.completed > 0 && (
+                  <span className="font-mono text-[10px] font-bold text-blue-700 flex items-center gap-1 bg-white/80 px-1.5 py-0.5 rounded-md border border-blue-200/50">
+                    <ListChecks className="w-3 h-3 text-blue-600" />
+                    <span>{checklistStats.completed}/{checklistStats.total}</span>
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
