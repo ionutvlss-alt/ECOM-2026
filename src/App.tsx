@@ -156,8 +156,21 @@ export default function App() {
       const clean = (firestoreProducts || [])
         .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
         .map(normalizeProduct);
-      setProducts(clean);
-      storageService.saveProducts(clean);
+
+      if (clean.length > 0) {
+        setProducts(clean);
+        storageService.saveProducts(clean);
+      } else {
+        // Dacă Firestore e gol dar utilizatorul are produse locale salvate, le trimitem pe Firestore în loc să le ștergem
+        const localProds = storageService.getProducts();
+        if (localProds.length > 0) {
+          localProds.forEach((p) => {
+            firestoreSyncService.saveProduct(p).catch(() => {});
+          });
+        } else {
+          setProducts([]);
+        }
+      }
     });
 
     const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
@@ -256,11 +269,6 @@ export default function App() {
     const normalized = (newProducts || []).map(normalizeProduct);
     setProducts(normalized);
     storageService.saveProducts(normalized);
-    
-    // Salvare în Google Cloud Firestore (timp real)
-    normalized.forEach((p) => {
-      firestoreSyncService.saveProduct(p).catch(() => {});
-    });
 
     serverSyncService.syncWithServer(normalized, suppliers, categories).then((res) => {
       if (res && res.products) {
@@ -375,54 +383,66 @@ export default function App() {
 
   // Handle Campaign Status Update
   const handleUpdateCampaignStatus = (productId: string, newStatus: CampaignStatus) => {
+    let changedProd: Product | null = null;
     const updated = products.map((p) => {
       if (p.id === productId) {
-        return {
+        changedProd = {
           ...p,
           campaign: {
             ...p.campaign,
             status: newStatus,
           },
         };
+        return changedProd;
       }
       return p;
     });
 
     updateProducts(updated);
+    if (changedProd) firestoreSyncService.saveProduct(changedProd).catch(() => {});
   };
 
   // Handle Favorite Toggle
   const handleToggleFavorite = (productId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    let changedProd: Product | null = null;
     const updated = products.map((p) => {
       if (p.id === productId) {
-        return { ...p, isFavorite: !p.isFavorite };
+        changedProd = { ...p, isFavorite: !p.isFavorite };
+        return changedProd;
       }
       return p;
     });
     updateProducts(updated);
+    if (changedProd) firestoreSyncService.saveProduct(changedProd).catch(() => {});
   };
 
   // Handle Checklist Update
   const handleUpdateChecklist = (productId: string, newChecklist: ProductChecklist) => {
+    let changedProd: Product | null = null;
     const updated = products.map((p) => {
       if (p.id === productId) {
-        return { ...p, checklist: newChecklist };
+        changedProd = { ...p, checklist: newChecklist };
+        return changedProd;
       }
       return p;
     });
     updateProducts(updated);
+    if (changedProd) firestoreSyncService.saveProduct(changedProd).catch(() => {});
   };
 
   // Handle Listing Status Update (planned / in_progress / live)
   const handleUpdateListingStatus = (productId: string, newStatus: ListingStatus) => {
+    let changedProd: Product | null = null;
     const updated = products.map((p) => {
       if (p.id === productId) {
-        return { ...p, listingStatus: newStatus };
+        changedProd = { ...p, listingStatus: newStatus };
+        return changedProd;
       }
       return p;
     });
     updateProducts(updated);
+    if (changedProd) firestoreSyncService.saveProduct(changedProd).catch(() => {});
   };
 
   // Extract unique target sites for autocomplete & suggestions

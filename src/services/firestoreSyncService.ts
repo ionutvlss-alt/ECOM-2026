@@ -11,7 +11,7 @@ import {
 import { db } from './firebaseConfig';
 import { Product } from '../types/product';
 import { Supplier } from '../types/supplier';
-import { normalizeProduct } from '../utils/productNormalizer';
+import { normalizeProduct, cleanForFirestore } from '../utils/productNormalizer';
 import { storageService } from './storageService';
 
 export interface FirestoreSyncStatus {
@@ -128,8 +128,9 @@ export const firestoreSyncService = {
   saveProduct: async (product: Product): Promise<boolean> => {
     try {
       const normalized = normalizeProduct(product);
+      const cleaned = cleanForFirestore(normalized);
       const docRef = doc(db, 'products', normalized.id);
-      await setDoc(docRef, normalized, { merge: true });
+      await setDoc(docRef, cleaned, { merge: true });
       return true;
     } catch (err: any) {
       console.error('Eroare salvare produs în Firestore:', err);

@@ -170,6 +170,23 @@ export const CHECKLIST_ITEMS_CONFIG: {
   },
 ];
 
+export function cleanForFirestore(obj: any): any {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) {
+    return obj.map(cleanForFirestore);
+  }
+  if (typeof obj === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      if (val !== undefined) {
+        cleaned[key] = cleanForFirestore(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}
+
 export function safeFormatNumber(val: any): string {
   const num = Number(val);
   if (!Number.isFinite(num)) return '0';
