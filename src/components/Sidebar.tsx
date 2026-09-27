@@ -15,13 +15,14 @@ import {
   ShieldCheck,
   Building2,
   Lock,
-  Tv
+  Tv,
+  Calculator
 } from 'lucide-react';
 import { AuthUser } from '../services/authService';
 
 interface SidebarProps {
-  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports';
-  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports') => void;
+  currentTab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports' | 'profit-simulator';
+  onTabChange: (tab: 'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports' | 'profit-simulator') => void;
   productsCount: number;
   suppliersCount?: number;
   winnersCount: number;
@@ -189,6 +190,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <BarChart2 className={`w-4 h-4 ${currentTab === 'reports' ? 'text-[#134e48]' : 'text-neutral-500'}`} />
               <span>Rapoarte & ROAS</span>
+            </button>
+
+            <button
+              onClick={() => handleNav('profit-simulator')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                currentTab === 'profit-simulator'
+                  ? 'bg-[#eaf3ee] text-[#134e48] font-semibold'
+                  : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Calculator className={`w-4 h-4 ${currentTab === 'profit-simulator' ? 'text-[#134e48]' : 'text-neutral-500'}`} />
+                <span>Simulator Profit</span>
+              </div>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-[#0f4a3c]">
+                NOU
+              </span>
             </button>
           </div>
 

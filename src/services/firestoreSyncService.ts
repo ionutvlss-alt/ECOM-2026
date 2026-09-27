@@ -139,6 +139,25 @@ export const firestoreSyncService = {
     }
   },
 
+  // Salvare în lot a mai multor produse în Firestore (ex: la import JSON / recuperare date)
+  saveAllProducts: async (productsList: Product[]): Promise<boolean> => {
+    try {
+      if (!Array.isArray(productsList) || productsList.length === 0) return true;
+      const batch = writeBatch(db);
+      productsList.forEach((prod) => {
+        const normalized = normalizeProduct(prod);
+        const cleaned = cleanForFirestore(normalized);
+        const docRef = doc(db, 'products', normalized.id);
+        batch.set(docRef, cleaned, { merge: true });
+      });
+      await batch.commit();
+      return true;
+    } catch (err: any) {
+      console.error('Eroare salvare lot produse în Firestore:', err);
+      return false;
+    }
+  },
+
   // 5. Ștergere produs
   deleteProduct: async (productId: string): Promise<boolean> => {
     try {

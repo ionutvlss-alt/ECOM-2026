@@ -143,6 +143,19 @@ export function normalizeProduct(raw: any): Product {
     pros: Array.isArray(raw.pros) ? raw.pros.map(String) : [],
     cons: Array.isArray(raw.cons) ? raw.cons.map(String) : [],
     isFavorite: Boolean(raw.isFavorite),
+    profitSimulation: raw.profitSimulation ? {
+      purchaseCost: Number(raw.profitSimulation.purchaseCost) || 0,
+      shippingChina: Number(raw.profitSimulation.shippingChina) || 0,
+      customsDuty: Number(raw.profitSimulation.customsDuty) || 0,
+      importVat: Number(raw.profitSimulation.importVat) || 0,
+      adCpa: Number(raw.profitSimulation.adCpa) || 0,
+      returnReserve: Number(raw.profitSimulation.returnReserve) || 0,
+      packagingCost: Number(raw.profitSimulation.packagingCost) || 0,
+      courierDeliveryCost: Number(raw.profitSimulation.courierDeliveryCost) || 0,
+      otherExpenses: Number(raw.profitSimulation.otherExpenses) || 0,
+      salePrice: Number(raw.profitSimulation.salePrice) || Number(raw.price) || 0,
+      targetOrdersPerDay: Number(raw.profitSimulation.targetOrdersPerDay) || 10,
+    } : undefined,
   };
 }
 

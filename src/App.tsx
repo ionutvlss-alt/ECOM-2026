@@ -20,6 +20,7 @@ import { CategoriesView } from './components/CategoriesView';
 import { GalleryView } from './components/GalleryView';
 import { AdsGalleryView } from './components/AdsGalleryView';
 import { ReportsView } from './components/ReportsView';
+import { ProfitSimulatorView } from './components/ProfitSimulatorView';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { ProductFormModal } from './components/ProductFormModal';
 import { SupplierFormModal } from './components/SupplierFormModal';
@@ -38,7 +39,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>(() => (storageService.getProducts() || []).map(normalizeProduct));
   const [categories, setCategories] = useState<string[]>(() => storageService.getCategories());
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => storageService.getSuppliers());
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'catalog' | 'kanban' | 'campaigns' | 'suppliers' | 'categories' | 'gallery' | 'ads-gallery' | 'reports' | 'profit-simulator'>('dashboard');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => authService.getCurrentUser());
@@ -820,6 +821,29 @@ export default function App() {
               products={products}
               categories={categories}
               onSelectProduct={setSelectedProduct}
+            />
+          )}
+
+          {/* Tab 8: Simulator de Profitabilitate & Unit Economics */}
+          {currentTab === 'profit-simulator' && (
+            <ProfitSimulatorView
+              products={products}
+              onOpenProductDetail={setSelectedProduct}
+              onOpenEditProduct={(prod) => {
+                setSelectedProduct(null);
+                setEditingProduct(prod);
+                setIsNewProductOpen(true);
+              }}
+              onUpdateProductSimulation={(productId, sim) => {
+                const prod = products.find((p) => p.id === productId);
+                if (prod) {
+                  const updated: Product = {
+                    ...prod,
+                    profitSimulation: sim,
+                  };
+                  handleSaveProduct(updated);
+                }
+              }}
             />
           )}
           </ErrorBoundary>

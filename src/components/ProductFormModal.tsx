@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Product, CampaignResults, CampaignStatus, ProductChecklist, ListingStatus, AdLink } from '../types/product';
+import { Product, CampaignResults, CampaignStatus, ProductChecklist, ListingStatus, AdLink, ProfitSimulation } from '../types/product';
 import { Supplier } from '../types/supplier';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { CHECKLIST_ITEMS_CONFIG, calculateChecklistStats, detectAdPlatform } from '../utils/productNormalizer';
@@ -27,7 +27,11 @@ import {
   Video,
   Film,
   Eye,
-  Play
+  Play,
+  Calculator,
+  Plane,
+  RotateCcw,
+  Truck
 } from 'lucide-react';
 import { compressImageFile, compressBase64Image } from '../utils/imageCompressor';
 import { AdPreviewCard } from './AdPreviewCard';
@@ -177,6 +181,41 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   );
   const [detailedNotes, setDetailedNotes] = useState(initialProduct?.detailedNotes || '');
 
+  // Simulator de profitabilitate orientativ per produs
+  const [purchaseCost, setPurchaseCost] = useState<number>(
+    initialProduct?.profitSimulation?.purchaseCost ?? (price > 0 ? Math.round(price * 0.22) : 25)
+  );
+  const [shippingChina, setShippingChina] = useState<number>(
+    initialProduct?.profitSimulation?.shippingChina ?? 18
+  );
+  const [customsDuty, setCustomsDuty] = useState<number>(
+    initialProduct?.profitSimulation?.customsDuty ?? 5
+  );
+  const [importVat, setImportVat] = useState<number>(
+    initialProduct?.profitSimulation?.importVat ?? 10
+  );
+  const [adCpa, setAdCpa] = useState<number>(
+    initialProduct?.profitSimulation?.adCpa ?? (calculatedCpa > 0 ? Math.round(calculatedCpa) : 28)
+  );
+  const [returnReserve, setReturnReserve] = useState<number>(
+    initialProduct?.profitSimulation?.returnReserve ?? 6
+  );
+  const [packagingCost, setPackagingCost] = useState<number>(
+    initialProduct?.profitSimulation?.packagingCost ?? 3
+  );
+  const [courierDeliveryCost, setCourierDeliveryCost] = useState<number>(
+    initialProduct?.profitSimulation?.courierDeliveryCost ?? 17
+  );
+  const [otherExpenses, setOtherExpenses] = useState<number>(
+    initialProduct?.profitSimulation?.otherExpenses ?? 3
+  );
+
+  // Calcule rapide simulator
+  const simTotalLanded = Number(purchaseCost) + Number(shippingChina) + Number(customsDuty) + Number(importVat);
+  const simTotalCost = simTotalLanded + Number(adCpa) + Number(returnReserve) + Number(packagingCost) + Number(courierDeliveryCost) + Number(otherExpenses);
+  const simNetProfit = Number(price) - simTotalCost;
+  const simNetMargin = Number(price) > 0 ? (simNetProfit / Number(price)) * 100 : 0;
+
   // Calcul automat ROAS și CPA
   const calculatedRoas = adSpend > 0 ? Number((revenue / adSpend).toFixed(2)) : 0;
   const calculatedCpa = ordersCount > 0 ? Number((adSpend / ordersCount).toFixed(1)) : 0;
@@ -323,6 +362,21 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       pros: pros.filter((p) => p.trim().length > 0),
       cons: cons.filter((c) => c.trim().length > 0),
       isFavorite: initialProduct?.isFavorite ?? false,
+
+      // Salvare simulator profitabilitate
+      profitSimulation: {
+        purchaseCost: Number(purchaseCost) || 0,
+        shippingChina: Number(shippingChina) || 0,
+        customsDuty: Number(customsDuty) || 0,
+        importVat: Number(importVat) || 0,
+        adCpa: Number(adCpa) || 0,
+        returnReserve: Number(returnReserve) || 0,
+        packagingCost: Number(packagingCost) || 0,
+        courierDeliveryCost: Number(courierDeliveryCost) || 0,
+        otherExpenses: Number(otherExpenses) || 0,
+        salePrice: Number(price) || 0,
+        targetOrdersPerDay: initialProduct?.profitSimulation?.targetOrdersPerDay || 10,
+      },
     };
 
     onSave(updatedProduct, newCategoryAdded);
@@ -852,6 +906,187 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 placeholder="Observații despre stoc, marjă de profit, furnizori alternativi etc."
                 className="w-full bg-neutral-50 border border-neutral-200 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c] resize-none"
               />
+            </div>
+          </div>
+
+          {/* SECȚIUNEA 4.5: Simulator Rapid Profitabilitate & Costuri Orientative */}
+          <div className="bg-[#fcfdfd] border-2 border-emerald-600/30 rounded-2xl p-5 space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-200">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                  <Calculator className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900 flex items-center gap-2">
+                    <span>Simulator Profit & Costuri Orientative</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
+                      Unit Economics
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">
+                    Calcul orientativ per produs (transport China, vamă, TVA, CPA reclame, retururi și ambalare).
+                  </p>
+                </div>
+              </div>
+
+              {/* Indicator Profit Net per Bucată */}
+              <div className="flex items-center gap-2 self-start sm:self-auto bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                <span className="text-[11px] font-medium text-emerald-800">Profit estimat:</span>
+                <span className={`text-sm font-mono font-bold ${simNetProfit > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                  {simNetProfit > 0 ? '+' : ''}{simNetProfit.toFixed(1)} {currency}
+                </span>
+                <span className="text-[10px] font-mono text-emerald-600 font-semibold">
+                  ({simNetMargin.toFixed(0)}%)
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1">
+                  Cost produs (China):
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={purchaseCost}
+                    onChange={(e) => setPurchaseCost(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1 flex items-center gap-1">
+                  <Plane className="w-3 h-3 text-neutral-400" />
+                  <span>Livrare China/buc:</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={shippingChina}
+                    onChange={(e) => setShippingChina(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1">
+                  Taxe vamale:
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={customsDuty}
+                    onChange={(e) => setCustomsDuty(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1">
+                  TVA import (19%):
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={importVat}
+                    onChange={(e) => setImportVat(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1 border-t border-neutral-100">
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1 font-semibold text-emerald-900">
+                  CPA Reclame Ads:
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={adCpa}
+                    onChange={(e) => setAdCpa(Number(e.target.value))}
+                    className="w-full bg-emerald-50/50 border border-emerald-300 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs font-bold text-emerald-950 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+                <span className="text-[10px] text-neutral-400">20-35 lei orientativ</span>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1 flex items-center gap-1">
+                  <RotateCcw className="w-3 h-3 text-rose-500" />
+                  <span>Rezervă retur:</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={returnReserve}
+                    onChange={(e) => setReturnReserve(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+                <span className="text-[10px] text-neutral-400">4-8 lei per colet</span>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1">
+                  Ambalare / AWB:
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={packagingCost}
+                    onChange={(e) => setPackagingCost(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+                <span className="text-[10px] text-neutral-400">pungă, etichetă (2-5 lei)</span>
+              </div>
+
+              <div>
+                <label className="block text-neutral-600 font-medium mb-1 flex items-center gap-1">
+                  <Truck className="w-3 h-3 text-neutral-400" />
+                  <span>Curier livrare:</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min={0}
+                    value={courierDeliveryCost}
+                    onChange={(e) => setCourierDeliveryCost(Number(e.target.value))}
+                    className="w-full bg-white border border-neutral-200 rounded-xl px-2.5 py-1.5 pr-8 font-mono text-xs text-neutral-900 focus:outline-none focus:border-[#0f4a3c]"
+                  />
+                  <span className="absolute right-2.5 top-1.5 text-neutral-400 text-[10px]">lei</span>
+                </div>
+                <span className="text-[10px] text-neutral-400">dacă e inclus în preț</span>
+              </div>
+            </div>
+
+            {/* Sumar costuri bară */}
+            <div className="p-3 bg-neutral-100/70 rounded-xl flex items-center justify-between text-xs font-mono text-neutral-700">
+              <span>Total cheltuieli estimate: <strong>{simTotalCost.toFixed(1)} {currency}</strong></span>
+              <span>Preț vânzare pe site: <strong>{price} {currency}</strong></span>
+              <span className={`font-bold ${simNetProfit > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                {simNetProfit > 0 ? 'Profit: +' : 'Pierdere: '}{simNetProfit.toFixed(1)} {currency}
+              </span>
             </div>
           </div>
 

@@ -77,6 +77,23 @@ export interface Product {
   pros: string[];
   cons: string[];
   isFavorite?: boolean;
+
+  // Simulator de profitabilitate & Unit Economics orientativ
+  profitSimulation?: ProfitSimulation;
+}
+
+export interface ProfitSimulation {
+  purchaseCost: number; // Cost achiziție produs (furnizor) în RON
+  shippingChina: number; // Taxă de livrare din China per produs (orientativ 12-25 lei)
+  customsDuty: number; // Taxe vamale per produs (orientativ 3-7 lei)
+  importVat: number; // TVA de import per produs (19% sau orientativ 8-15 lei)
+  adCpa: number; // CPA reclame (cost achiziție reclamă, orientativ 20-35 lei)
+  returnReserve: number; // Rezervă / provizion taxa de retur per produs (orientativ 4-8 lei)
+  packagingCost: number; // Ambalaje, pungă curier, etichete AWB, bandă (orientativ 2-5 lei)
+  courierDeliveryCost: number; // Taxă curier livrare client final (ex: 15-18 lei sau inclusă)
+  otherExpenses: number; // Alte cheltuieli (procesare card, software etc., orientativ 2-4 lei)
+  salePrice: number; // Preț de vânzare estimat către client (în RON)
+  targetOrdersPerDay?: number; // Obiectiv comenzi/zi pentru simulare lunară
 }
 
 export interface FilterOptions {

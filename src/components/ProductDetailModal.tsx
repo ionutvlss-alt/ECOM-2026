@@ -20,7 +20,10 @@ import {
   ListChecks,
   Store,
   Compass,
-  Video
+  Video,
+  Calculator,
+  Plane,
+  RotateCcw
 } from 'lucide-react';
 import { CAMPAIGN_STATUS_LABELS } from '../data/initialProducts';
 import { safeFormatNumber, calculateChecklistStats, CHECKLIST_ITEMS_CONFIG } from '../utils/productNormalizer';
@@ -483,6 +486,79 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   )}
                 </div>
               )}
+
+              {/* CARDUL: Rentabilitate & Unit Economics Estimativ */}
+              {(() => {
+                const sim = product.profitSimulation;
+                const sale = Number(product.price) || 0;
+                const cogs = sim?.purchaseCost ?? Math.round(sale * 0.22);
+                const ship = sim?.shippingChina ?? 18;
+                const customs = sim?.customsDuty ?? 5;
+                const vat = sim?.importVat ?? 10;
+                const cpa = sim?.adCpa ?? 28;
+                const ret = sim?.returnReserve ?? 6;
+                const pack = sim?.packagingCost ?? 3;
+                const courier = sim?.courierDeliveryCost ?? 17;
+                const other = sim?.otherExpenses ?? 3;
+
+                const totalCost = cogs + ship + customs + vat + cpa + ret + pack + courier + other;
+                const profit = sale - totalCost;
+                const margin = sale > 0 ? (profit / sale) * 100 : 0;
+                const maxCpa = Math.max(0, sale - (cogs + ship + customs + vat + ret + pack + courier + other));
+
+                return (
+                  <div className="bg-[#fcfdfd] border-2 border-emerald-600/30 rounded-2xl p-5 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-200">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                          <Calculator className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-xs font-bold text-neutral-900 block">
+                            Simulator Rentabilitate & Costuri Orientative
+                          </span>
+                          <span className="text-[11px] text-neutral-500">
+                            Unit Economics per comandă livrată
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-mono font-bold px-3 py-1 rounded-full ${
+                          profit > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {profit > 0 ? '+' : ''}{profit.toFixed(1)} {product.currency} ({margin.toFixed(0)}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                      <div className="bg-white border border-neutral-200/80 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Cost Marfă + Livrare China</span>
+                        <span className="font-mono font-bold text-neutral-800">{cogs + ship} lei</span>
+                      </div>
+                      <div className="bg-white border border-neutral-200/80 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Vamă + TVA import</span>
+                        <span className="font-mono font-bold text-neutral-800">{customs + vat} lei</span>
+                      </div>
+                      <div className="bg-white border border-neutral-200/80 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-neutral-400 block font-medium">CPA Reclame (Ads)</span>
+                        <span className="font-mono font-bold text-emerald-700">{cpa} lei</span>
+                      </div>
+                      <div className="bg-white border border-neutral-200/80 p-2.5 rounded-xl">
+                        <span className="text-[10px] text-neutral-400 block font-medium">Retur + Curier + Pungă</span>
+                        <span className="font-mono font-bold text-neutral-800">{ret + courier + pack + other} lei</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-neutral-500 pt-1 font-mono">
+                      <span>Total cheltuieli: <strong className="text-neutral-800">{totalCost.toFixed(1)} lei</strong></span>
+                      <span>CPA Maxim Admisibil: <strong className="text-emerald-700">{maxCpa.toFixed(0)} lei</strong></span>
+                      <span>Preț vânzare: <strong className="text-neutral-900">{sale} {product.currency}</strong></span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* CARDUL ADS: Plasat la sfârșit, sub datele produsului */}
               <div className="bg-[#f5fbf7] border-2 border-emerald-200/80 rounded-2xl p-5 space-y-4">
