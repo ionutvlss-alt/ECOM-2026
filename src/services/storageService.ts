@@ -18,19 +18,32 @@ const LEGACY_PRODUCT_KEYS = [
 ];
 
 const CLEAN_SLATE_KEY = 'review_tracker_wiped_zero_v7';
+const PENDING_PRODUCT_IDS_KEY = 'review_tracker_pending_product_ids_v1';
+const PENDING_DELETE_IDS_KEY = 'review_tracker_pending_delete_ids_v1';
+
+function readIdSet(key: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeIdSet(key: string, values: Set<string>) {
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(values)));
+  } catch {}
+}
 
 // Auto-purge toate datele demo vechi de pe orice dispozitiv (telefon, pc, laptop)
 function ensureCleanSlate() {
   if (typeof window === 'undefined') return;
   try {
-    const isWiped = localStorage.getItem(CLEAN_SLATE_KEY);
-    if (!isWiped) {
-      LEGACY_PRODUCT_KEYS.forEach((key) => {
-        try { localStorage.removeItem(key); } catch {}
-      });
-      try { localStorage.removeItem(PRODUCTS_KEY); } catch {}
-      try { sessionStorage.removeItem(PRODUCTS_KEY); } catch {}
-      indexedDBService.clearProducts().catch(() => {});
+    // Migrarea veche ștergea automat datele locale la prima rulare.
+    // Pentru siguranța datelor reale, marcăm doar migrarea ca efectuată și nu ștergem nimic.
+    if (!localStorage.getItem(CLEAN_SLATE_KEY)) {
       localStorage.setItem(CLEAN_SLATE_KEY, 'true');
     }
   } catch {}
@@ -42,6 +55,43 @@ ensureCleanSlate();
 const KNOWN_MOCK_IDS = new Set(['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2']);
 
 export const storageService = {
+  // Marcaje persistente pentru schimbări locale care nu au fost încă confirmate de Firestore.
+  // Sunt folosite pentru a preveni pierderea tăcută a produselor dacă o scriere cloud eșuează.
+  getPendingProductIds: (): Set<string> => readIdSet(PENDING_PRODUCT_IDS_KEY),
+
+  markProductsPending: (ids: string[]) => {
+    const set = readIdSet(PENDING_PRODUCT_IDS_KEY);
+    ids.filter(Boolean).forEach((id) => set.add(String(id)));
+    writeIdSet(PENDING_PRODUCT_IDS_KEY, set);
+  },
+
+  clearProductsPending: (ids: string[]) => {
+    const set = readIdSet(PENDING_PRODUCT_IDS_KEY);
+    ids.filter(Boolean).forEach((id) => set.delete(String(id)));
+    writeIdSet(PENDING_PRODUCT_IDS_KEY, set);
+  },
+
+  getPendingDeleteIds: (): Set<string> => readIdSet(PENDING_DELETE_IDS_KEY),
+
+  markDeletePending: (id: string) => {
+    if (!id) return;
+    const set = readIdSet(PENDING_DELETE_IDS_KEY);
+    set.add(String(id));
+    writeIdSet(PENDING_DELETE_IDS_KEY, set);
+  },
+
+  clearDeletePending: (id: string) => {
+    const set = readIdSet(PENDING_DELETE_IDS_KEY);
+    set.delete(String(id));
+    writeIdSet(PENDING_DELETE_IDS_KEY, set);
+  },
+
+  clearSyncMarkers: () => {
+    try {
+      localStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
+      localStorage.removeItem(PENDING_DELETE_IDS_KEY);
+    } catch {}
+  },
   // Resetare manuală la 0 produse (pe dispozitivul curent)
   clearAllProducts: (): Product[] => {
     try {

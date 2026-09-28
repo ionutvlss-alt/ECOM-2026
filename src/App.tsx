@@ -127,6 +127,7 @@ export default function App() {
       await firestoreSyncService.clearAllProductsFromFirestore();
       await serverSyncService.syncWithServer([], suppliers, categories);
       storageService.clearAllProducts();
+      storageService.clearSyncMarkers();
       setProducts([]);
     } catch (err) {
       console.error('Eroare resetare la 0:', err);
@@ -159,10 +160,33 @@ export default function App() {
         .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
         .map(normalizeProduct);
 
-      // Firestore este sursa principală de adevăr. Dacă lista este goală,
-      // păstrăm și local exact aceeași stare pentru a nu reînvia produse șterse.
-      setProducts(clean);
-      storageService.saveProducts(clean);
+      // Protecție anti-pierdere:
+      // - schimbările locale neconfirmate de Firestore sunt păstrate;
+      // - ștergerile locale în curs nu sunt reintroduse de un snapshot întârziat.
+      const pendingIds = storageService.getPendingProductIds();
+      const pendingDeleteIds = storageService.getPendingDeleteIds();
+      const localProducts = storageService.getProducts();
+      const merged = new Map<string, Product>();
+
+      clean.forEach((p) => {
+        if (!pendingDeleteIds.has(String(p.id))) {
+          merged.set(String(p.id), p);
+        }
+      });
+
+      localProducts.forEach((p) => {
+        const id = String(p.id);
+        if (pendingIds.has(id) && !pendingDeleteIds.has(id)) {
+          merged.set(id, normalizeProduct(p));
+        }
+      });
+
+      const nextProducts = Array.from(merged.values()).sort(
+        (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+
+      setProducts(nextProducts);
+      storageService.saveProducts(nextProducts);
     });
 
     const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
@@ -259,12 +283,19 @@ export default function App() {
   // Sincronizare produse local + Google Cloud Firestore + Server
   const updateProducts = (newProducts: Product[]) => {
     const normalized = (newProducts || []).map(normalizeProduct);
+    const ids = normalized.map((p) => String(p.id));
+
+    // Marcăm înainte de orice operație cloud. Dacă Firestore eșuează,
+    // aceste produse rămân protejate în storage-ul local și nu sunt suprascrise.
+    storageService.markProductsPending(ids);
     setProducts(normalized);
     storageService.saveProducts(normalized);
 
-    // Sincronizare completă pentru fluxurile care modifică mai multe produse simultan
-    // (rename categorie, import, transfer între dispozitive etc.).
-    firestoreSyncService.saveAllProducts(normalized).catch((err) => {
+    firestoreSyncService.saveAllProducts(normalized).then((ok) => {
+      if (ok) {
+        storageService.clearProductsPending(ids);
+      }
+    }).catch((err) => {
       console.warn('Eroare sincronizare lot Firestore:', err);
     });
 
@@ -357,7 +388,12 @@ export default function App() {
     }
 
     updateProducts(updated);
-    firestoreSyncService.saveProduct(product).catch(() => {});
+    storageService.markProductsPending([String(product.id)]);
+    firestoreSyncService.saveProduct(product).then((ok) => {
+      if (ok) {
+        storageService.clearProductsPending([String(product.id)]);
+      }
+    }).catch(() => {});
     setIsNewProductOpen(false);
     setEditingProduct(null);
 
@@ -371,8 +407,13 @@ export default function App() {
     if (e) e.stopPropagation();
     if (window.confirm('Ești sigur că vrei să ștergi acest produs din evidență?')) {
       const updated = products.filter((p) => p.id !== productId);
+      storageService.markDeletePending(String(productId));
       updateProducts(updated);
-      firestoreSyncService.deleteProduct(productId).catch(() => {});
+      firestoreSyncService.deleteProduct(productId).then((ok) => {
+        if (ok) {
+          storageService.clearDeletePending(String(productId));
+        }
+      }).catch(() => {});
       if (selectedProduct?.id === productId) {
         setSelectedProduct(null);
       }
@@ -909,6 +950,7 @@ export default function App() {
           onResetSuccess={(resetList) => {
             setProducts(resetList);
             storageService.clearAllProducts();
+            storageService.clearSyncMarkers();
             firestoreSyncService.clearAllProductsFromFirestore().catch(() => {});
             serverSyncService.syncWithServer([], suppliers, categories).catch(() => {});
           }}
