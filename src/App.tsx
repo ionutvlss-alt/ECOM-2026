@@ -262,6 +262,12 @@ export default function App() {
     setProducts(normalized);
     storageService.saveProducts(normalized);
 
+    // Sincronizare completă pentru fluxurile care modifică mai multe produse simultan
+    // (rename categorie, import, transfer între dispozitive etc.).
+    firestoreSyncService.saveAllProducts(normalized).catch((err) => {
+      console.warn('Eroare sincronizare lot Firestore:', err);
+    });
+
     serverSyncService.syncWithServer(normalized, suppliers, categories).then((res) => {
       if (res && res.products) {
         setLastKnownVersion((prev) => prev + 1);
@@ -902,6 +908,9 @@ export default function App() {
           }}
           onResetSuccess={(resetList) => {
             setProducts(resetList);
+            storageService.clearAllProducts();
+            firestoreSyncService.clearAllProductsFromFirestore().catch(() => {});
+            serverSyncService.syncWithServer([], suppliers, categories).catch(() => {});
           }}
           onClose={() => setIsExportImportOpen(false)}
           onOpenDeviceSync={() => {
