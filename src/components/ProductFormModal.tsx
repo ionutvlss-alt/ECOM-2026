@@ -195,7 +195,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     initialProduct?.profitSimulation?.importVat ?? 10
   );
   const [adCpa, setAdCpa] = useState<number>(
-    initialProduct?.profitSimulation?.adCpa ?? (calculatedCpa > 0 ? Math.round(calculatedCpa) : 28)
+    initialProduct?.profitSimulation?.adCpa ??
+      (ordersCount > 0 && adSpend > 0 ? Math.round(adSpend / ordersCount) : 28)
   );
   const [returnReserve, setReturnReserve] = useState<number>(
     initialProduct?.profitSimulation?.returnReserve ?? 6
