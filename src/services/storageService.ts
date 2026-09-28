@@ -494,6 +494,7 @@ export const storageService = {
             }
 
             if (valid.length > 0) {
+              storageService.markProductsPending(valid.map((p) => String(p.id)));
               storageService.saveProducts(valid);
               resolve(valid);
             } else {

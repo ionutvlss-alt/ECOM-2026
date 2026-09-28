@@ -72,8 +72,9 @@ export const firestoreSyncService = {
           error: null,
         });
 
-        // Actualizăm și backup-ul local
-        storageService.saveProducts(prods);
+        // App.tsx decide cum se face merge-ul cu modificările locale neconfirmate.
+        // Nu scriem aici direct peste storage, altfel un snapshot cloud întârziat
+        // poate șterge produse importate local înainte ca acestea să fie confirmate.
         onData(prods);
       },
       (error) => {
@@ -160,6 +161,8 @@ export const firestoreSyncService = {
         });
         await batch.commit();
       }
+
+      storageService.clearProductsPending(productsList.map((p) => String(p.id)));
       return true;
     } catch (err: any) {
       console.error('Eroare salvare lot produse în Firestore:', err);
