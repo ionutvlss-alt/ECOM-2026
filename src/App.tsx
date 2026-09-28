@@ -159,20 +159,10 @@ export default function App() {
         .filter((p) => p && p.id && !['1', '2', '3', '4', '5', '6', '7', '8', 'mock-1', 'mock-2'].includes(String(p.id)))
         .map(normalizeProduct);
 
-      if (clean.length > 0) {
-        setProducts(clean);
-        storageService.saveProducts(clean);
-      } else {
-        // Dacă Firestore e gol dar utilizatorul are produse locale salvate, le trimitem pe Firestore în loc să le ștergem
-        const localProds = storageService.getProducts();
-        if (localProds.length > 0) {
-          localProds.forEach((p) => {
-            firestoreSyncService.saveProduct(p).catch(() => {});
-          });
-        } else {
-          setProducts([]);
-        }
-      }
+      // Firestore este sursa principală de adevăr. Dacă lista este goală,
+      // păstrăm și local exact aceeași stare pentru a nu reînvia produse șterse.
+      setProducts(clean);
+      storageService.saveProducts(clean);
     });
 
     const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
@@ -902,7 +892,13 @@ export default function App() {
         <ExportImportModal
           products={products}
           onImportSuccess={(imported) => {
-            setProducts(imported);
+            const normalized = imported.map(normalizeProduct);
+            setProducts(normalized);
+            storageService.saveProducts(normalized);
+            firestoreSyncService.saveAllProducts(normalized).catch(() => {});
+            serverSyncService.syncWithServer(normalized, storageService.getSuppliers(), storageService.getCategories()).catch(() => {});
+            setSuppliers(storageService.getSuppliers());
+            setCategories(storageService.getCategories());
           }}
           onResetSuccess={(resetList) => {
             setProducts(resetList);
