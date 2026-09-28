@@ -162,7 +162,8 @@ export const firestoreSyncService = {
         await batch.commit();
       }
 
-      storageService.clearProductsPending(productsList.map((p) => String(p.id)));
+      // Nu eliminăm aici protecția locală. Ea este eliminată numai după ce
+      // listenerul Firestore vede efectiv toate ID-urile pendinte în snapshot.
       return true;
     } catch (err: any) {
       console.error('Eroare salvare lot produse în Firestore:', err);
