@@ -41,14 +41,9 @@ function writeIdSet(key: string, values: Set<string>) {
 function ensureCleanSlate() {
   if (typeof window === 'undefined') return;
   try {
-    const isWiped = localStorage.getItem(CLEAN_SLATE_KEY);
-    if (!isWiped) {
-      LEGACY_PRODUCT_KEYS.forEach((key) => {
-        try { localStorage.removeItem(key); } catch {}
-      });
-      try { localStorage.removeItem(PRODUCTS_KEY); } catch {}
-      try { sessionStorage.removeItem(PRODUCTS_KEY); } catch {}
-      indexedDBService.clearProducts().catch(() => {});
+    // Migrarea veche ștergea automat datele locale la prima rulare.
+    // Pentru siguranța datelor reale, marcăm doar migrarea ca efectuată și nu ștergem nimic.
+    if (!localStorage.getItem(CLEAN_SLATE_KEY)) {
       localStorage.setItem(CLEAN_SLATE_KEY, 'true');
     }
   } catch {}
@@ -89,6 +84,13 @@ export const storageService = {
     const set = readIdSet(PENDING_DELETE_IDS_KEY);
     set.delete(String(id));
     writeIdSet(PENDING_DELETE_IDS_KEY, set);
+  },
+
+  clearSyncMarkers: () => {
+    try {
+      localStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
+      localStorage.removeItem(PENDING_DELETE_IDS_KEY);
+    } catch {}
   },
   // Resetare manuală la 0 produse (pe dispozitivul curent)
   clearAllProducts: (): Product[] => {
