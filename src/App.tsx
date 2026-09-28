@@ -167,6 +167,7 @@ export default function App() {
       const pendingDeleteIds = storageService.getPendingDeleteIds();
       const localProducts = storageService.getProducts();
       const merged = new Map<string, Product>();
+      const cloudIds = new Set(clean.map((p) => String(p.id)));
 
       clean.forEach((p) => {
         if (!pendingDeleteIds.has(String(p.id))) {
@@ -180,6 +181,16 @@ export default function App() {
           merged.set(id, normalizeProduct(p));
         }
       });
+
+      // Eliminăm protecția numai când snapshot-ul live conține TOATE
+      // produsele care erau încă pendinte. Un snapshot parțial/vechi nu poate
+      // astfel reduce lista importată.
+      if (pendingIds.size > 0) {
+        const allPendingConfirmed = Array.from(pendingIds).every((id) => cloudIds.has(id));
+        if (allPendingConfirmed) {
+          storageService.clearProductsPending(Array.from(pendingIds));
+        }
+      }
 
       const nextProducts = Array.from(merged.values()).sort(
         (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
