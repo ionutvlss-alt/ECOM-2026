@@ -100,9 +100,15 @@ export const storageService = {
   },
 
   clearSyncMarkers: () => {
+    pendingIdFallback.delete(PENDING_PRODUCT_IDS_KEY);
+    pendingIdFallback.delete(PENDING_DELETE_IDS_KEY);
     try {
       localStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
       localStorage.removeItem(PENDING_DELETE_IDS_KEY);
+    } catch {}
+    try {
+      sessionStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
+      sessionStorage.removeItem(PENDING_DELETE_IDS_KEY);
     } catch {}
   },
   // Resetare manuală la 0 produse (pe dispozitivul curent)
