@@ -3,6 +3,7 @@ import { Supplier } from '../types/supplier';
 import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
 import { indexedDBService } from './db';
 import { normalizeProduct } from '../utils/productNormalizer';
+import { compressBase64Image } from '../utils/imageCompressor';
 
 const PRODUCTS_KEY = 'review_tracker_products_v3';
 const CATEGORIES_KEY = 'review_tracker_categories_v3';
@@ -20,21 +21,33 @@ const LEGACY_PRODUCT_KEYS = [
 const CLEAN_SLATE_KEY = 'review_tracker_wiped_zero_v7';
 const PENDING_PRODUCT_IDS_KEY = 'review_tracker_pending_product_ids_v1';
 const PENDING_DELETE_IDS_KEY = 'review_tracker_pending_delete_ids_v1';
+const pendingIdFallback = new Map<string, Set<string>>();
 
 function readIdSet(key: string): Set<string> {
+  const merged = new Set<string>(pendingIdFallback.get(key) || []);
+
   try {
     const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
-  } catch {
-    return new Set();
-  }
+    if (Array.isArray(parsed)) parsed.forEach((id) => merged.add(String(id)));
+  } catch {}
+
+  try {
+    const raw = sessionStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) parsed.forEach((id) => merged.add(String(id)));
+  } catch {}
+
+  return merged;
 }
 
 function writeIdSet(key: string, values: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify(Array.from(values)));
-  } catch {}
+  const copy = new Set(Array.from(values).map(String));
+  pendingIdFallback.set(key, copy);
+  const serialized = JSON.stringify(Array.from(copy));
+
+  try { localStorage.setItem(key, serialized); } catch {}
+  try { sessionStorage.setItem(key, serialized); } catch {}
 }
 
 // Auto-purge toate datele demo vechi de pe orice dispozitiv (telefon, pc, laptop)
@@ -87,9 +100,15 @@ export const storageService = {
   },
 
   clearSyncMarkers: () => {
+    pendingIdFallback.delete(PENDING_PRODUCT_IDS_KEY);
+    pendingIdFallback.delete(PENDING_DELETE_IDS_KEY);
     try {
       localStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
       localStorage.removeItem(PENDING_DELETE_IDS_KEY);
+    } catch {}
+    try {
+      sessionStorage.removeItem(PENDING_PRODUCT_IDS_KEY);
+      sessionStorage.removeItem(PENDING_DELETE_IDS_KEY);
     } catch {}
   },
   // Resetare manuală la 0 produse (pe dispozitivul curent)
@@ -460,7 +479,7 @@ export const storageService = {
   importFromJSON: async (file: File): Promise<Product[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const content = event.target?.result as string;
           const parsed = JSON.parse(content);
@@ -471,7 +490,7 @@ export const storageService = {
             : null;
 
           if (rawList && Array.isArray(rawList)) {
-            const valid = rawList
+            const validRaw = rawList
               .filter((item) => item && typeof item === 'object' && (item.title || item.id))
               .map((item) => {
                 const withId = {
@@ -480,6 +499,33 @@ export const storageService = {
                 };
                 return normalizeProduct(withId);
               });
+
+            // Backup-urile vechi pot conține imagini base64 foarte mari.
+            // Firestore are o limită de ~1 MiB/document, deci comprimăm imaginile
+            // importate înainte de salvare/sincronizare.
+            const valid = await Promise.all(
+              validRaw.map(async (product) => {
+                const compressedImages = await Promise.all(
+                  (product.images || []).map(async (img) => {
+                    if (!img || !img.startsWith('data:image')) return img;
+
+                    let out = img;
+                    if (out.length > 450000) {
+                      out = await compressBase64Image(out, 1000, 1000, 0.72);
+                    }
+                    if (out.length > 700000) {
+                      out = await compressBase64Image(out, 800, 800, 0.65);
+                    }
+                    if (out.length > 700000) {
+                      out = await compressBase64Image(out, 600, 600, 0.58);
+                    }
+                    return out;
+                  })
+                );
+
+                return normalizeProduct({ ...product, images: compressedImages });
+              })
+            );
 
             if (parsed && Array.isArray(parsed.suppliers)) {
               try {

@@ -32,13 +32,9 @@ function updateSyncState(patch: Partial<ServerSyncState>) {
 }
 
 function hasServerApi(): boolean {
-  if (typeof window === 'undefined') return true;
-  const host = window.location.hostname.toLowerCase();
-
-  // GitHub Pages servește doar fișiere statice; sincronizarea cloud reală este Firestore.
-  if (host.endsWith('github.io')) return false;
-
-  return window.location.protocol === 'http:' || window.location.protocol === 'https:';
+  // Firestore este sursa cloud principală. API-ul Express vechi rămâne dezactivat
+  // implicit pentru a evita suprascrierea datelor cu o a doua sursă de adevăr.
+  return import.meta.env.VITE_ENABLE_LEGACY_SERVER_API === 'true';
 }
 
 function markStaticHostingReady() {
