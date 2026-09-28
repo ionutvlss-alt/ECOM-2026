@@ -166,15 +166,15 @@ export default function App() {
     });
 
     const unsubSuppliers = firestoreSyncService.subscribeSuppliers((firestoreSuppliers) => {
-      if (firestoreSuppliers && firestoreSuppliers.length > 0) {
-        setSuppliers(firestoreSuppliers);
-      }
+      const nextSuppliers = Array.isArray(firestoreSuppliers) ? firestoreSuppliers : [];
+      setSuppliers(nextSuppliers);
+      storageService.saveSuppliers(nextSuppliers);
     });
 
     const unsubCategories = firestoreSyncService.subscribeCategories((firestoreCategories) => {
-      if (firestoreCategories && firestoreCategories.length > 0) {
-        setCategories(firestoreCategories);
-      }
+      const nextCategories = Array.isArray(firestoreCategories) ? firestoreCategories : [];
+      setCategories(nextCategories);
+      storageService.saveCategories(nextCategories);
     });
 
     return () => {
