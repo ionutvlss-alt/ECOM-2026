@@ -4,6 +4,7 @@ import {
   setDoc,
   deleteDoc,
   getDocs,
+  getDoc,
   onSnapshot,
   writeBatch,
   Unsubscribe
@@ -143,14 +144,22 @@ export const firestoreSyncService = {
   saveAllProducts: async (productsList: Product[]): Promise<boolean> => {
     try {
       if (!Array.isArray(productsList) || productsList.length === 0) return true;
-      const batch = writeBatch(db);
-      productsList.forEach((prod) => {
-        const normalized = normalizeProduct(prod);
-        const cleaned = cleanForFirestore(normalized);
-        const docRef = doc(db, 'products', normalized.id);
-        batch.set(docRef, cleaned, { merge: true });
-      });
-      await batch.commit();
+      // Firestore limitează un batch la 500 operații; folosim marjă de siguranță.
+      const chunks: Product[][] = [];
+      for (let i = 0; i < productsList.length; i += 450) {
+        chunks.push(productsList.slice(i, i + 450));
+      }
+
+      for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach((prod) => {
+          const normalized = normalizeProduct(prod);
+          const cleaned = cleanForFirestore(normalized);
+          const docRef = doc(db, 'products', normalized.id);
+          batch.set(docRef, cleaned, { merge: true });
+        });
+        await batch.commit();
+      }
       return true;
     } catch (err: any) {
       console.error('Eroare salvare lot produse în Firestore:', err);
@@ -210,7 +219,15 @@ export const firestoreSyncService = {
   seedInitialCategoriesIfEmpty: async (defaultCategories: string[]) => {
     try {
       const catDoc = doc(db, 'settings', 'categories');
-      await setDoc(catDoc, { categories: defaultCategories, updatedAt: new Date().toISOString() }, { merge: true });
+      const existing = await getDoc(catDoc);
+      const data = existing.exists() ? existing.data() : null;
+      if (!data || !Array.isArray(data.categories) || data.categories.length === 0) {
+        await setDoc(
+          catDoc,
+          { categories: defaultCategories, updatedAt: new Date().toISOString() },
+          { merge: true }
+        );
+      }
     } catch (err) {
       console.warn('Verificare seed categorii Firestore:', err);
     }
@@ -221,11 +238,14 @@ export const firestoreSyncService = {
     try {
       const snap = await getDocs(collection(db, 'products'));
       if (snap.empty) return true;
-      const batch = writeBatch(db);
-      snap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
-      await batch.commit();
+      const docs = snap.docs;
+      for (let i = 0; i < docs.length; i += 450) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 450).forEach((docSnap) => {
+          batch.delete(docSnap.ref);
+        });
+        await batch.commit();
+      }
       console.log('Baza Firestore a fost resetată la 0 produse.');
       return true;
     } catch (err: any) {
