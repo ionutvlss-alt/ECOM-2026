@@ -161,6 +161,8 @@ export const firestoreSyncService = {
         });
         await batch.commit();
       }
+
+      storageService.clearProductsPending(productsList.map((p) => String(p.id)));
       return true;
     } catch (err: any) {
       console.error('Eroare salvare lot produse în Firestore:', err);
