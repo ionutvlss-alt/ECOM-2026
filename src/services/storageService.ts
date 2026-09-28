@@ -3,6 +3,7 @@ import { Supplier } from '../types/supplier';
 import { INITIAL_PRODUCTS, DEFAULT_CATEGORIES } from '../data/initialProducts';
 import { indexedDBService } from './db';
 import { normalizeProduct } from '../utils/productNormalizer';
+import { compressBase64Image } from '../utils/imageCompressor';
 
 const PRODUCTS_KEY = 'review_tracker_products_v3';
 const CATEGORIES_KEY = 'review_tracker_categories_v3';
@@ -460,7 +461,7 @@ export const storageService = {
   importFromJSON: async (file: File): Promise<Product[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const content = event.target?.result as string;
           const parsed = JSON.parse(content);
@@ -471,7 +472,7 @@ export const storageService = {
             : null;
 
           if (rawList && Array.isArray(rawList)) {
-            const valid = rawList
+            const validRaw = rawList
               .filter((item) => item && typeof item === 'object' && (item.title || item.id))
               .map((item) => {
                 const withId = {
@@ -480,6 +481,33 @@ export const storageService = {
                 };
                 return normalizeProduct(withId);
               });
+
+            // Backup-urile vechi pot conține imagini base64 foarte mari.
+            // Firestore are o limită de ~1 MiB/document, deci comprimăm imaginile
+            // importate înainte de salvare/sincronizare.
+            const valid = await Promise.all(
+              validRaw.map(async (product) => {
+                const compressedImages = await Promise.all(
+                  (product.images || []).map(async (img) => {
+                    if (!img || !img.startsWith('data:image')) return img;
+
+                    let out = img;
+                    if (out.length > 450000) {
+                      out = await compressBase64Image(out, 1000, 1000, 0.72);
+                    }
+                    if (out.length > 700000) {
+                      out = await compressBase64Image(out, 800, 800, 0.65);
+                    }
+                    if (out.length > 700000) {
+                      out = await compressBase64Image(out, 600, 600, 0.58);
+                    }
+                    return out;
+                  })
+                );
+
+                return normalizeProduct({ ...product, images: compressedImages });
+              })
+            );
 
             if (parsed && Array.isArray(parsed.suppliers)) {
               try {
