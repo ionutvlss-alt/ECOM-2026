@@ -31,6 +31,24 @@ function updateSyncState(patch: Partial<ServerSyncState>) {
   listeners.forEach((fn) => fn(syncState));
 }
 
+function hasServerApi(): boolean {
+  if (typeof window === 'undefined') return true;
+  const host = window.location.hostname.toLowerCase();
+
+  // GitHub Pages servește doar fișiere statice; sincronizarea cloud reală este Firestore.
+  if (host.endsWith('github.io')) return false;
+
+  return window.location.protocol === 'http:' || window.location.protocol === 'https:';
+}
+
+function markStaticHostingReady() {
+  updateSyncState({
+    isOnline: typeof navigator === 'undefined' ? true : navigator.onLine,
+    isSyncing: false,
+    lastError: null,
+  });
+}
+
 export const serverSyncService = {
   // --- Autentificare PIN 6122 ---
   isPinAuthenticated: (): boolean => {
@@ -48,6 +66,12 @@ export const serverSyncService = {
     // Verificare locală de siguranță
     if (clean !== REQUIRED_ACCESS_PIN) {
       return { success: false, message: 'Cod de acces incorect. Introdu codul 6122.' };
+    }
+
+    if (!hasServerApi()) {
+      localStorage.setItem(PIN_STORAGE_KEY, 'true');
+      markStaticHostingReady();
+      return { success: true, message: 'Acces permis.' };
     }
 
     try {
@@ -97,6 +121,11 @@ export const serverSyncService = {
     version: number;
     lastUpdated: string;
   } | null> => {
+    if (!hasServerApi()) {
+      markStaticHostingReady();
+      return null;
+    }
+
     try {
       updateSyncState({ isSyncing: true });
       const res = await fetch('/api/data', {
@@ -152,6 +181,18 @@ export const serverSyncService = {
     suppliers: Supplier[];
     categories: string[];
   }> => {
+    if (!hasServerApi()) {
+      storageService.saveProducts(localProducts);
+      storageService.saveSuppliers(localSuppliers);
+      storageService.saveCategories(localCategories);
+      markStaticHostingReady();
+      return {
+        products: localProducts,
+        suppliers: localSuppliers,
+        categories: localCategories,
+      };
+    }
+
     try {
       updateSyncState({ isSyncing: true });
 
@@ -217,6 +258,7 @@ export const serverSyncService = {
 
   // --- Salvare produs individual pe server ---
   saveProduct: async (product: Product): Promise<boolean> => {
+    if (!hasServerApi()) return true;
     try {
       const res = await fetch('/api/products', {
         method: 'POST',
@@ -231,6 +273,7 @@ export const serverSyncService = {
 
   // --- Ștergere produs pe server ---
   deleteProduct: async (productId: string): Promise<boolean> => {
+    if (!hasServerApi()) return true;
     try {
       const res = await fetch(`/api/products/${encodeURIComponent(productId)}`, {
         method: 'DELETE',
@@ -243,6 +286,7 @@ export const serverSyncService = {
 
   // --- Salvare furnizor pe server ---
   saveSupplier: async (supplier: Supplier): Promise<boolean> => {
+    if (!hasServerApi()) return true;
     try {
       const res = await fetch('/api/suppliers', {
         method: 'POST',
@@ -257,6 +301,7 @@ export const serverSyncService = {
 
   // --- Ștergere furnizor pe server ---
   deleteSupplier: async (supplierId: string): Promise<boolean> => {
+    if (!hasServerApi()) return true;
     try {
       const res = await fetch(`/api/suppliers/${encodeURIComponent(supplierId)}`, {
         method: 'DELETE',
