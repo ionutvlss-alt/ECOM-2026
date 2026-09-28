@@ -21,21 +21,33 @@ const LEGACY_PRODUCT_KEYS = [
 const CLEAN_SLATE_KEY = 'review_tracker_wiped_zero_v7';
 const PENDING_PRODUCT_IDS_KEY = 'review_tracker_pending_product_ids_v1';
 const PENDING_DELETE_IDS_KEY = 'review_tracker_pending_delete_ids_v1';
+const pendingIdFallback = new Map<string, Set<string>>();
 
 function readIdSet(key: string): Set<string> {
+  const merged = new Set<string>(pendingIdFallback.get(key) || []);
+
   try {
     const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
-  } catch {
-    return new Set();
-  }
+    if (Array.isArray(parsed)) parsed.forEach((id) => merged.add(String(id)));
+  } catch {}
+
+  try {
+    const raw = sessionStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (Array.isArray(parsed)) parsed.forEach((id) => merged.add(String(id)));
+  } catch {}
+
+  return merged;
 }
 
 function writeIdSet(key: string, values: Set<string>) {
-  try {
-    localStorage.setItem(key, JSON.stringify(Array.from(values)));
-  } catch {}
+  const copy = new Set(Array.from(values).map(String));
+  pendingIdFallback.set(key, copy);
+  const serialized = JSON.stringify(Array.from(copy));
+
+  try { localStorage.setItem(key, serialized); } catch {}
+  try { sessionStorage.setItem(key, serialized); } catch {}
 }
 
 // Auto-purge toate datele demo vechi de pe orice dispozitiv (telefon, pc, laptop)
