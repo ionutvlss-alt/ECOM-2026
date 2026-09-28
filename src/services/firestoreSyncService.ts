@@ -14,6 +14,7 @@ import { Product } from '../types/product';
 import { Supplier } from '../types/supplier';
 import { normalizeProduct, cleanForFirestore } from '../utils/productNormalizer';
 import { storageService } from './storageService';
+import { compressBase64Image } from '../utils/imageCompressor';
 
 export interface FirestoreSyncStatus {
   isConnecting: boolean;
@@ -35,6 +36,29 @@ let syncStatus: FirestoreSyncStatus = {
 function updateStatus(patch: Partial<FirestoreSyncStatus>) {
   syncStatus = { ...syncStatus, ...patch };
   statusListeners.forEach((cb) => cb(syncStatus));
+}
+
+async function prepareProductForFirestore(product: Product): Promise<Product> {
+  const normalized = normalizeProduct(product);
+  const images = await Promise.all(
+    (normalized.images || []).map(async (img) => {
+      if (!img || !img.startsWith('data:image')) return img;
+
+      let out = img;
+      if (out.length > 450000) {
+        out = await compressBase64Image(out, 1000, 1000, 0.72);
+      }
+      if (out.length > 700000) {
+        out = await compressBase64Image(out, 800, 800, 0.65);
+      }
+      if (out.length > 700000) {
+        out = await compressBase64Image(out, 600, 600, 0.58);
+      }
+      return out;
+    })
+  );
+
+  return normalizeProduct({ ...normalized, images });
 }
 
 export const firestoreSyncService = {
@@ -129,7 +153,7 @@ export const firestoreSyncService = {
   // 4. Salvare produs individual (Create / Edit)
   saveProduct: async (product: Product): Promise<boolean> => {
     try {
-      const normalized = normalizeProduct(product);
+      const normalized = await prepareProductForFirestore(product);
       const cleaned = cleanForFirestore(normalized);
       const docRef = doc(db, 'products', normalized.id);
       await setDoc(docRef, cleaned, { merge: true });
@@ -152,9 +176,9 @@ export const firestoreSyncService = {
       }
 
       for (const chunk of chunks) {
+        const preparedChunk = await Promise.all(chunk.map(prepareProductForFirestore));
         const batch = writeBatch(db);
-        chunk.forEach((prod) => {
-          const normalized = normalizeProduct(prod);
+        preparedChunk.forEach((normalized) => {
           const cleaned = cleanForFirestore(normalized);
           const docRef = doc(db, 'products', normalized.id);
           batch.set(docRef, cleaned, { merge: true });
