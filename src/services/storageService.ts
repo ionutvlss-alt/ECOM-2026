@@ -437,6 +437,12 @@ export const storageService = {
               } catch {}
             }
 
+            if (parsed && Array.isArray(parsed.categories) && parsed.categories.length > 0) {
+              try {
+                storageService.saveCategories(parsed.categories);
+              } catch {}
+            }
+
             if (valid.length > 0) {
               storageService.saveProducts(valid);
               resolve(valid);

@@ -38,13 +38,13 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleCleanAndReload = () => {
     try {
-      const raw = localStorage.getItem('ecom_products');
+      const raw = localStorage.getItem('review_tracker_products_v3');
       if (raw) {
         try {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             const sanitized = parsed.filter((p: any) => p && typeof p === 'object' && p.id);
-            localStorage.setItem('ecom_products', JSON.stringify(sanitized));
+            localStorage.setItem('review_tracker_products_v3', JSON.stringify(sanitized));
           }
         } catch {}
       }

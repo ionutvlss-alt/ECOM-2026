@@ -9,7 +9,7 @@ export async function compressImageFile(
   maxHeight = 1200,
   quality = 0.82
 ): Promise<string> {
-  // If file is SVG or small GIF, don't re-compress on canvas
+  // SVG-urile nu se rasterizează pentru a nu pierde calitatea.
   if (file.type === 'image/svg+xml') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -21,20 +21,19 @@ export async function compressImageFile(
 
   return new Promise((resolve) => {
     const reader = new FileReader();
+
     reader.onload = (e) => {
+      const originalDataUrl = e.target?.result as string;
       const img = new Image();
+
       img.onload = () => {
         let width = img.width;
         let height = img.height;
 
         if (width > maxWidth || height > maxHeight) {
-          if (width / height > maxWidth / maxHeight) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          } else {
-            width = Math.round((width * maxHeight) / height);
-            maxHeight = height;
-          }
+          const scale = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.max(1, Math.round(width * scale));
+          height = Math.max(1, Math.round(height * scale));
         }
 
         const canvas = document.createElement('canvas');
@@ -43,30 +42,23 @@ export async function compressImageFile(
 
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve(e.target?.result as string);
+          resolve(originalDataUrl);
           return;
         }
 
-        // Draw and compress to JPEG
+        // JPEG nu suportă transparență, așa că folosim fundal alb.
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(compressedDataUrl);
+        resolve(canvas.toDataURL('image/jpeg', quality));
       };
 
-      img.onerror = () => {
-        resolve(e.target?.result as string);
-      };
-
-      img.src = e.target?.result as string;
+      img.onerror = () => resolve(originalDataUrl);
+      img.src = originalDataUrl;
     };
 
-    reader.onerror = () => {
-      resolve('');
-    };
-
+    reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });
 }
@@ -83,23 +75,20 @@ export async function compressBase64Image(
 
   return new Promise((resolve) => {
     const img = new Image();
+
     img.onload = () => {
       let width = img.width;
       let height = img.height;
 
       if (width <= maxWidth && height <= maxHeight && dataUrl.length < 200000) {
-        // Already reasonably small
         resolve(dataUrl);
         return;
       }
 
       if (width > maxWidth || height > maxHeight) {
-        if (width / height > maxWidth / maxHeight) {
-          height = Math.round((height * maxWidth) / width);
-          width = maxWidth;
-        } else {
-          width = Math.round((width * maxHeight) / height);
-        }
+        const scale = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
       }
 
       const canvas = document.createElement('canvas');
